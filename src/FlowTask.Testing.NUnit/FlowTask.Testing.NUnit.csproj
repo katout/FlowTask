@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Unhandled flow exceptions fail the NUnit test. -->
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <LangVersion>10.0</LangVersion>
+    <RootNamespace>Katout.FlowTask.Testing.NUnit</RootNamespace>
+    <PackageId>FlowTask.Testing.NUnit</PackageId>
+    <Description>NUnit adapter for FlowTask.Testing: worlds created with FlowNUnit.CreateWorld write unhandled flow exceptions to the test output, and [FailOnUnhandledFlowException] or disposing the world fails the test. Needs NUnit 3.14 or later.</Description>
+    <PackageTags>$(PackageTags);testing;nunit</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The dependency floor for users (NUnit 3.14+), not the version the repository tests with. -->
+    <PackageReference Include="NUnit" VersionOverride="3.14.0" />
+    <ProjectReference Include="..\FlowTask.Testing\FlowTask.Testing.csproj" />
+  </ItemGroup>
+  <!-- The FLOW rules check this project too: Unity users compile its sources next to the core's analyzer. -->
+  <ItemGroup>
+    <ProjectReference Include="..\FlowTask.Analyzers\FlowTask.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

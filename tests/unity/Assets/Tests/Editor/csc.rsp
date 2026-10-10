@@ -1,0 +1,3 @@
+-langversion:latest
+-optimize+
+-nowarn:1998

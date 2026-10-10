@@ -1,0 +1,111 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.{csproj,props,targets,xml,json,yml,yaml,asmdef,resx}]
+indent_size = 2
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Analyzer settings (CONTRIBUTING.md). Library projects build with AnalysisMode=All and TreatWarningsAsErrors, so every
+# rule that fires stops the build. Every rule switched off below is a deliberate design decision with its reason;
+# everything else stays an error.
+# ---------------------------------------------------------------------------------------------------------------------
+[*.cs]
+
+# Handles, awaiters and results are value types for zero allocation; equality is not part of their contract.
+dotnet_diagnostic.CA1815.severity = none
+# Exceptions are created by the library only; the standard constructor set would be unused API.
+dotnet_diagnostic.CA1032.severity = none
+# ArgumentNullException.ThrowIfNull & co. do not exist on netstandard2.1 (Unity); one code path for both targets.
+dotnet_diagnostic.CA1510.severity = none
+dotnet_diagnostic.CA1512.severity = none
+dotnet_diagnostic.CA1513.severity = none
+dotnet_diagnostic.CA1850.severity = none
+# Implicit conversions (FlowTask -> FlowTask<FlowUnit>, FlowHandle -> FlowHandle<FlowUnit>, TestWorld -> FlowWorld) are the
+# API; named alternates would be unused API.
+dotnet_diagnostic.CA2225.severity = none
+# Awaiter / Enumerator nested types follow the C# await and foreach patterns.
+dotnet_diagnostic.CA1034.severity = none
+# byte-backed enums keep FlowNode's state fields packed (every live FlowTask is a node).
+dotnet_diagnostic.CA1028.severity = none
+# The async method builder pattern requires static Create().
+dotnet_diagnostic.CA1000.severity = none
+# Events use Action<T>: no EventArgs allocation, matching the rest of the game-facing API.
+dotnet_diagnostic.CA1003.severity = none
+
+# Code style enforced in the build (EnforceCodeStyleInBuild).
+dotnet_diagnostic.IDE0005.severity = warning   # unnecessary using directive
+dotnet_diagnostic.IDE0044.severity = warning   # field can be readonly
+dotnet_diagnostic.IDE0051.severity = warning   # unused private member
+dotnet_diagnostic.IDE0052.severity = warning   # private member assigned but never read
+dotnet_diagnostic.IDE0059.severity = warning   # unnecessary assignment
+dotnet_diagnostic.IDE0060.severity = warning   # unused parameter
+# Unused parameters of public members are part of their contract (builder pattern, operators).
+dotnet_code_quality_unused_parameters = non_public
+# C# 10 (docs/ja/advanced/design-rationale.md, "C# 10 と Unity 2023.1"): one file-scoped namespace per file, and the
+# newer syntax where it says the same thing with less. The patterns and switch expressions sometimes compile to other
+# IL (a field read once, a range test, an IL switch); measured on the hot path without a difference beyond the noise.
+csharp_style_namespace_declarations = file_scoped
+dotnet_diagnostic.IDE0161.severity = warning   # file-scoped namespace
+csharp_style_implicit_object_creation_when_type_is_apparent = true
+dotnet_diagnostic.IDE0090.severity = warning   # new(...) when the type is already written
+dotnet_style_prefer_compound_assignment = true
+dotnet_diagnostic.IDE0054.severity = warning   # x += y
+dotnet_diagnostic.IDE0074.severity = warning   # x ??= y
+csharp_style_prefer_pattern_matching = true
+dotnet_diagnostic.IDE0078.severity = warning   # x is A or B
+csharp_style_prefer_not_pattern = true
+dotnet_diagnostic.IDE0083.severity = warning   # x is not T
+csharp_style_prefer_extended_property_pattern = true
+dotnet_diagnostic.IDE0170.severity = warning   # x is { A.B: c }
+csharp_style_pattern_matching_over_as_with_null_check = true
+dotnet_diagnostic.IDE0019.severity = warning   # x is T t, not as + null check
+dotnet_diagnostic.IDE0260.severity = warning
+csharp_style_pattern_matching_over_is_with_cast_check = true
+dotnet_diagnostic.IDE0020.severity = warning   # x is T t, not is + cast
+dotnet_diagnostic.IDE0038.severity = warning
+csharp_style_prefer_switch_expression = true
+dotnet_diagnostic.IDE0066.severity = warning   # switch expression for a switch that only picks a value
+csharp_style_prefer_index_operator = true
+dotnet_diagnostic.IDE0056.severity = warning   # list[^1]
+csharp_style_prefer_range_operator = true
+dotnet_diagnostic.IDE0057.severity = warning   # s[a..b]
+csharp_prefer_static_anonymous_function = true
+dotnet_diagnostic.IDE0320.severity = warning   # static lambda when it captures nothing (a capture allocates)
+
+# The analyzers' titles, messages and descriptions come from Resources.resx and Resources.ja.resx (English and Japanese,
+# docs/ja/tools/analyzers.md): RS1007 (off by default) stops a descriptor built from a string literal.
+[src/FlowTask.Analyzers/**.cs]
+dotnet_diagnostic.RS1007.severity = warning
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Tests, samples and benchmarks build with the default analysis set (still TreatWarningsAsErrors). Test code violates
+# FlowTask's own FLOW rules on purpose to prove the runtime detection; names follow the test framework conventions.
+# ---------------------------------------------------------------------------------------------------------------------
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none       # test names use underscores (FLOW003_..., Lifecycle_...)
+dotnet_diagnostic.IDE0051.severity = suggestion
+dotnet_diagnostic.IDE0052.severity = suggestion
+dotnet_diagnostic.IDE0059.severity = suggestion
+dotnet_diagnostic.IDE0060.severity = suggestion
+
+# ---------------------------------------------------------------------------------------------------------------------
+# Unity finds the class of a MonoBehaviour or ScriptableObject (EditorWindow included) by parsing its script file, not
+# with the compiler, and does not see a class in a file-scoped namespace: the component cannot be added and assets that
+# use the class lose it. These files keep a block namespace; in Unity,
+# EditorIntegrationTests.EveryMonoBehaviourAndScriptableObjectIsFoundThroughItsScript checks it (docs/maintainers/engine-tests.md).
+# ---------------------------------------------------------------------------------------------------------------------
+[{src/FlowTask.Unity/Editor/FlowScopeTreeWindow.cs,src/FlowTask.Unity/Runtime/FlowLifetimeTrigger.cs,src/FlowTask.Unity/Runtime/FlowTaskSettingsAsset.cs,tests/unity/Assets/Tests/Unity/DeltaTimeProbe.cs,tests/unity/Assets/Tests/Unity/StartupDeltaTimeProbe.cs,tests/unity/Assets/Tests/Unity/TestEmitter.cs,tests/unity/Assets/Tests/Unity/TestTaskCompleter.cs}]
+csharp_style_namespace_declarations = block_scoped
+
+# What Unity compiles with its default C# 9 (no csc.rsp next to the .asmdef): the package's samples, which users import
+# into projects of their own, their tests, the UniTask tests and the editor setup.
+[{tests/unity/Assets/Editor/**.cs,src/FlowTask.Unity/Samples~/**.cs,tests/unity/Assets/Tests/Samples/**.cs,tests/unity/Assets/Tests/UniTask/**.cs}]
+csharp_style_namespace_declarations = block_scoped
+csharp_style_prefer_extended_property_pattern = false

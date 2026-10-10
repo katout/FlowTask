@@ -1,0 +1,143 @@
+# The test suites on .NET 10 (Windows, Linux, macOS), NativeAOT and Godot 4, and the NuGet packages. The Unity Editor
+# runs in unity.yml; the Unity players (IL2CPP, Mono, Android) run locally with tools/unity/run-tests.ps1.
+#
+# Pull requests must pass ci-ok (the branch rules of main require it). Every push to main runs again: main does not ask
+# a pull request to be up to date with it, so a merge can combine two changes that each passed alone. Pushes to other
+# branches do not run (a branch with a pull request would run everything twice). release.yml calls this workflow for a
+# tag and publishes the packages that the run built.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A literal name, not github.workflow: in a run called by release.yml, github.workflow is the caller's name, so every
+  # workflow it calls would fall into one group.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  dotnet:
+    timeout-minutes: 30
+    env:
+      # The .NET SDK that built the committed src/FlowTask/Analyzers/FlowTask.Analyzers.dll. global.json rolls forward to
+      # the newest 10.0 SDK, which keeps contributors' builds working; for that rollForward setup-dotnet installs the
+      # newest 10.0 SDK too, and a new compiler can emit other bytes, which would fail the check of the committed DLL
+      # below (and tools/pack.ps1) without any change in the repository. So this job pins this exact SDK: update it
+      # together with the DLL.
+      FLOWTASK_SDK: 10.0.302
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Only in the runner's checkout: setup-dotnet installs the exact version, and rollForward disable makes dotnet use
+      # it rather than a newer SDK of the runner image.
+      - name: Pin the .NET SDK to ${{ env.FLOWTASK_SDK }}
+        shell: pwsh
+        run: |
+          $json = Get-Content global.json -Raw | ConvertFrom-Json
+          $json.sdk.version = $env:FLOWTASK_SDK
+          $json.sdk.rollForward = 'disable'
+          $json | ConvertTo-Json | Set-Content global.json
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Build
+        id: build
+        run: dotnet build FlowTask.slnx -c Release
+      - name: Core tests (Debug)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: dotnet test tests/FlowTask.Core.Tests -c Debug
+      - name: Core tests (Release)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: dotnet test tests/FlowTask.Core.Tests -c Release
+      - name: Analyzer tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: dotnet test tests/FlowTask.Analyzers.Tests -c Release
+      - name: Bridge tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: dotnet test tests/FlowTask.Bridges.Tests -c Release
+      - name: Generated files are up to date
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        run: |
+          dotnet tools/unity/generate_meta.cs --check
+          dotnet tools/gen_combinators.cs --check
+      # The Release build on Windows rewrites the analyzer DLL committed for Unity when its bytes differ. --stat: without
+      # it, git diff --exit-code exits with 0 for a changed binary file (Git for Windows 2.46).
+      - name: Committed analyzer DLL matches the sources
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && runner.os == 'Windows' }}
+        shell: bash
+        run: |
+          if ! git diff --exit-code --stat -- src/FlowTask/Analyzers/FlowTask.Analyzers.dll; then
+            echo "::error::Build Release on Windows with .NET SDK $(dotnet --version) and commit src/FlowTask/Analyzers/FlowTask.Analyzers.dll, or set FLOWTASK_SDK in ci.yml to the SDK that built the committed DLL."
+            exit 1
+          fi
+      # In a release, these are the packages that release.yml publishes.
+      - name: Pack
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && runner.os == 'Windows' }}
+        id: pack
+        shell: pwsh
+        run: ./tools/pack.ps1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() && steps.pack.outcome == 'success' }}
+        with:
+          name: packages
+          path: artifacts/packages
+          if-no-files-found: error
+
+  nativeaot:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Publish with NativeAOT and run the smoke test
+        shell: pwsh
+        run: |
+          dotnet publish tests/FlowTask.AotSmoke -c Release -r win-x64
+          & artifacts/bin/FlowTask.AotSmoke/Release/net10.0/win-x64/publish/FlowTask.AotSmoke.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  godot:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          # The smoke project stays on net8.0 (Godot 4.4); Godot's .NET host rolls forward to the SDK's .NET 10 runtime.
+          global-json-file: global.json
+      - name: Headless Godot 4.4.1 smoke and the core suite inside Godot
+        shell: pwsh
+        run: ./tools/godot/run-smoke.ps1
+
+  # The one check that the branch rules require, so that the jobs above can be renamed, split or given another matrix
+  # without editing the rules. It runs whatever happened, also when the run is canceled, and fails unless every job
+  # passed: a required check that is skipped counts as passed.
+  ci-ok:
+    if: ${{ always() }}
+    needs: [dotnet, nativeaot, godot]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job passed
+        if: ${{ always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
+        run: exit 1

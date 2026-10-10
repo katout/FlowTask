@@ -1,0 +1,22 @@
+{
+  "dependencies": {
+    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask#2.5.10",
+    "com.katout.flowtask": "file:../../../src/FlowTask",
+    "com.katout.flowtask.testing": "file:../../../src/FlowTask.Testing",
+    "com.katout.flowtask.testing.nunit": "file:../../../src/FlowTask.Testing.NUnit",
+    "com.katout.flowtask.unitask": "file:../../../src/FlowTask.UniTask",
+    "com.katout.flowtask.unity": "file:../../../src/FlowTask.Unity",
+    "com.unity.test-framework": "1.6.0",
+    "com.unity.ugui": "2.0.0",
+    "com.unity.modules.androidjni": "1.0.0",
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.ui": "1.0.0"
+  },
+  "testables": [
+    "com.katout.flowtask.testing",
+    "com.katout.flowtask.testing.nunit"
+  ]
+}

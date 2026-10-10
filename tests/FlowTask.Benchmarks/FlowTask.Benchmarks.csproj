@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Benchmarks with BenchmarkDotNet: await overhead, cancellation (unwinding) cost, race resolution, signal throughput,
+    scope creation, Tick baseline. The command lines are in Program.cs (XML comments cannot contain the double-dash
+    options).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <Optimize>true</Optimize>
+    <RootNamespace>Katout.FlowTask.Benchmarks</RootNamespace>
+    <NoWarn>$(NoWarn);CS1998;CS4014;CS1591</NoWarn>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="UniTask" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FlowTask\FlowTask.csproj" />
+  </ItemGroup>
+</Project>

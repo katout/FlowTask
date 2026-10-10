@@ -1,0 +1,24 @@
+name: Feature request / 機能の提案
+description: A scene you cannot write well with FlowTask today. / 今の FlowTask ではうまく書けない場面。
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        FlowTask keeps its public API small: an addition needs a concrete use, and must not be writable by combining the existing API in a line or two. Please describe the scene first, not the API.
+        FlowTask は公開 API を小さく保ちます。追加には具体的な使い道が要り、既存の API を 1〜2 行組み合わせて書けるものは足しません。API より先に、場面を書いてください。
+  - type: textarea
+    id: scene
+    attributes:
+      label: The scene / 場面
+      description: What your game needs to do, and how you write it today. / ゲームで何をしたいか、今はどう書いているか。
+      render: csharp
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is hard / 困っていること
+      description: Why the existing API is not enough. / 既存の API では足りない理由。
+    validations:
+      required: true

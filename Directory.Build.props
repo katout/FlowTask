@@ -1,0 +1,37 @@
+<Project>
+  <PropertyGroup>
+    <RepoRoot>$(MSBuildThisFileDirectory)</RepoRoot>
+    <BaseOutputPath>$(RepoRoot)artifacts\bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(RepoRoot)artifacts\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <Authors>katout</Authors>
+    <Copyright>Copyright (c) 2026 katout</Copyright>
+    <!-- The library version. Every src/*/package.json (UPM) carries the same string; PackageVersionTests checks it. -->
+    <Version>0.1.0-preview.1</Version>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://katout.github.io/FlowTask/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/katout/FlowTask</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageOutputPath>$(RepoRoot)artifacts\packages\</PackageOutputPath>
+  </PropertyGroup>
+
+  <!--
+    On a CI server the DLLs and PDBs record /_/ instead of the runner's folders, also for a plain dotnet build or pack.
+    tools/pack.ps1 passes the same property on every machine.
+  -->
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true' or '$(CI)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!--
+    Warnings are errors. The analysis level is fixed (10.0, not "latest"), so that a newer SDK does not add rules and
+    stop the build. NuGetAuditMode=all also stops the build on known vulnerabilities in transitive packages.
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>10.0</AnalysisLevel>
+    <NuGetAuditMode>all</NuGetAuditMode>
+  </PropertyGroup>
+</Project>

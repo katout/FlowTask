@@ -1,0 +1,19 @@
+; Engine configuration file.
+; The FlowTask samples for Godot: open this folder in Godot 4.4 (.NET) and run it (docs/en/godot/samples.md).
+
+config_version=5
+
+[application]
+
+config/name="FlowTask Samples"
+run/main_scene="res://Demo/Demo.tscn"
+config/features=PackedStringArray("4.4", "C#")
+config/quit_on_go_back=false
+
+[autoload]
+
+FlowAutoload="*res://FlowAutoload.cs"
+
+[dotnet]
+
+project/assembly_name="FlowTaskSamples"

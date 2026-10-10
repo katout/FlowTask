@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Japanese strings of the FlowTask analyzers (the ja satellite assembly, ja/FlowTask.Analyzers.resources.dll). Hosts
+  whose UI culture is Japanese show these; every other culture falls back to Resources.resx (English).
+  Same keys and {n} placeholders as Resources.resx (LocalizationTests). Titles are the headings of docs/analyzers.md;
+  messages and code fix titles end without 。, descriptions with it. Terms follow docs/analyzers.md: スコープ, キャンセル,
+  巻き戻し, 未処理の例外, 後始末, ブリッジ, 購読, ライフタイムハンドル, FlowTask メソッド.
+-->
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Flow001Title" xml:space="preserve">
+    <value>catch で FlowCanceledException を止めない</value>
+  </data>
+  <data name="Flow001Description" xml:space="preserve">
+    <value>FlowCanceledException は、キャンセルされたスコープを巻き戻すために await で投げられます。FlowTask メソッドの catch 節のうち、これを受け取れるものは、それを通さなければなりません。FlowCanceledException か、その基底の OperationCanceledException の catch 節は、すべての経路を 'throw' で終えてください。return したり先へ進んだりすると、キャンセルされたスコープが動き続けます。その後の await は生きているスコープと同じく待ち（ループは回り続けます）、コードが戻ると実行時に握りつぶしとして報告され、スコープはいずれにしてもキャンセルで終わります。すべてを捕まえる節（'catch'、'catch (Exception)'）は、投げ直すときも、キャンセルのたびに本体が走ります。'when (e is not FlowCanceledException)' を足してください。外部のキャンセル（フローの外でキャンセルされた Task の OperationCanceledException）はハンドラに残ります。'when (e is not OperationCanceledException)' では外部のキャンセルも通り、どこでも捕まえなければ未処理の例外でフローが終わります。外部のキャンセルだけを扱うには 'catch (OperationCanceledException e) when (e is not FlowCanceledException)' と書きます。try ブロックに await がない節と、フィルタが FlowCanceledException に対して偽になる節は報告しません。</value>
+  </data>
+  <data name="Flow001MessageCatchAll" xml:space="preserve">
+    <value>この catch 節は、キャンセルされたスコープを巻き戻す FlowCanceledException も受け取り、そのたびに本体を実行します。キャンセルを通すには 'when (e is not FlowCanceledException)' を足してください</value>
+    <comment>Message of Descriptors.CatchAllTakesCancellation.</comment>
+  </data>
+  <data name="Flow001MessageNotRethrown" xml:space="preserve">
+    <value>この catch 節は FlowCanceledException を受け取り、'throw' で終わっていないため、キャンセルされたスコープが動き続けます。'throw;' で終えるか、この節を消してください</value>
+    <comment>Message of Descriptors.CancellationCatchNotRethrown.</comment>
+  </data>
+  <data name="Flow001MessageOperationCanceledNotRethrown" xml:space="preserve">
+    <value>この catch 節は、OperationCanceledException の派生である FlowCanceledException も受け取り、'throw' で終わっていないため、キャンセルされたスコープが動き続けます。'throw;' で終えるか、'when (e is not FlowCanceledException)' で外部のキャンセルだけを受け取ってください</value>
+    <comment>Message of Descriptors.OperationCanceledCatchNotRethrown.</comment>
+  </data>
+  <data name="Flow002Title" xml:space="preserve">
+    <value>FlowTask メソッドで外部の awaitable を直接 await しない</value>
+  </data>
+  <data name="Flow002Description" xml:space="preserve">
+    <value>現在のスコープに登録されるのは FlowTask の awaitable だけです。awaiter が FlowTask.Awaiter か FlowTask&lt;T&gt;.Awaiter であるもの（FlowTask、Once&lt;T&gt;、TaskBridge など）が該当します。フローがほかの awaitable（Task、ValueTask、UniTask、Unity の Awaitable、Godot の SignalAwaiter、Task.Yield()、ConfigureAwait の結果）を待っている間は、キャンセルされたスコープを巻き戻せないため、フローがそこで止まるとすぐに、スコープは FlowMisuseException で終わります。同期的に完了する awaitable ではフローが止まらないので、実行時の検出はタイミングしだいです。FLOW002 は、そうした await をすべてコンパイル時に報告します。外部の処理は、スコープのキャンセルを渡す FlowBridge.FromTask(ct =&gt; ...) か、すでに走っている処理を包むだけでキャンセルしない .AsFlow() でブリッジしてください。</value>
+  </data>
+  <data name="Flow002MessageForeignAwaitTaskLike" xml:space="preserve">
+    <value>'{0}' は FlowTask の awaitable ではありません。これを待っている間はキャンセルされたスコープを巻き戻せないため、すぐに完了しないとスコープはここで FlowMisuseException で終わります。キャンセルが届くように FlowBridge.FromTask(ct =&gt; ...) でブリッジするか、すでに走っているタスクなら .AsFlow() でブリッジしてください</value>
+    <comment>Message of Descriptors.ForeignAwaitTaskLike. {0}: the awaited type.</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitWithAsFlow" xml:space="preserve">
+    <value>'{0}' は FlowTask の awaitable ではありません。これを待っている間はキャンセルされたスコープを巻き戻せないため、すぐに完了しないとスコープはここで FlowMisuseException で終わります。.AsFlow() でブリッジしてください</value>
+    <comment>Message of Descriptors.ForeignAwaitWithAsFlow. {0}: the awaited type.</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitYield" xml:space="preserve">
+    <value>'{0}' は World のスケジュールの外で再開するため、スコープはここで FlowMisuseException で終わります。次のフレームは FlowTask.NextFrame() で待ってください</value>
+    <comment>Message of Descriptors.ForeignAwaitYield. {0}: the awaited type (YieldAwaitable).</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitOther" xml:space="preserve">
+    <value>'{0}' は FlowTask の awaitable ではありません。これを待っている間はキャンセルされたスコープを巻き戻せないため、すぐに完了しないとスコープはここで FlowMisuseException で終わります。Task に包んで FlowBridge.FromTask(ct =&gt; ...) でブリッジしてください</value>
+    <comment>Message of Descriptors.ForeignAwaitOther. {0}: the awaited type.</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitForEach" xml:space="preserve">
+    <value>'await foreach' は繰り返しのたびに '{0}' を await するため、すぐに完了しない繰り返しがあるとスコープは FlowMisuseException で終わります。シーケンスはフローの外で読み、その結果を FlowBridge.FromTask(ct =&gt; ...) でブリッジしてください</value>
+    <comment>Message of Descriptors.ForeignAwaitForEach. {0}: the type returned by MoveNextAsync (ValueTask&lt;bool&gt;).</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitUsing" xml:space="preserve">
+    <value>'await using' はブロックの終わりに DisposeAsync の返す '{0}' を await するため、すぐに完了しないとスコープは FlowMisuseException で終わります。同期の 'using' で破棄するか、finally で 'await Flow.NonCancelable(FlowBridge.FromTask(_ =&gt; resource.DisposeAsync().AsTask()))' と書いて破棄してください</value>
+    <comment>Message of Descriptors.ForeignAwaitUsing. {0}: the type DisposeAsync returns (ValueTask).</comment>
+  </data>
+  <data name="Flow003Title" xml:space="preserve">
+    <value>FlowTask は await するか開始する</value>
+  </data>
+  <data name="Flow003Description" xml:space="preserve">
+    <value>FlowTask は遅延実行です。FlowTask メソッドを呼んでもタスクが作られるだけで、await されたとき、Flow.Spawn か FlowWorld.Run に渡されたとき、渡したコンビネータが始まったときに初めて実行されます。捨てた FlowTask、'_ =' で破棄した FlowTask、作った直後に Discard() で解放した FlowTask、どの経路でも読まれるとは限らない変数に入れた FlowTask は実行されません。Flow.Spawn は、現在のスコープが終わると止まる子を開始します。フローより長く動く処理（UniTask なら Forget() していたもの）は FlowWorld.Run で開始してください。実行時には、開始されなかった FlowTask は実行されないだけで、何も報告されません。</value>
+  </data>
+  <data name="Flow003MessageFlowTaskDropped" xml:space="preserve">
+    <value>この FlowTask は await も開始もされないため、実行されません。await するか、このフローより長く動かすなら world.Run で開始してください（Flow.Spawn では現在のスコープの終わりで止まります）</value>
+    <comment>Message of Descriptors.FlowTaskDropped.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskDiscarded" xml:space="preserve">
+    <value>FlowTask を '_ =' で破棄しても実行されません。await するか、このフローより長く動かすなら world.Run で開始してください（Flow.Spawn では現在のスコープの終わりで止まります）</value>
+    <comment>Message of Descriptors.FlowTaskDiscarded.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskDiscardedWithoutRunning" xml:space="preserve">
+    <value>'Discard()' はこの FlowTask を一度も実行せずに解放します（UniTask の Forget ではありません）。await するか、このフローより長く動かすなら world.Run で開始してください（Flow.Spawn では現在のスコープの終わりで止まります）</value>
+    <comment>Message of Descriptors.FlowTaskDiscardedWithoutRunning.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskLocalNeverRead" xml:space="preserve">
+    <value>'{0}' に入れた FlowTask は await も開始もされないため、実行されません</value>
+    <comment>Message of Descriptors.FlowTaskLocalNeverRead. {0}: the local variable.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskCollectionNeverRead" xml:space="preserve">
+    <value>'{0}' に入れた FlowTask は、どれも await されず開始もされないため、実行されません。コレクションを FlowTask.WhenAll か Race に渡すか、各タスクを開始してください</value>
+    <comment>Message of Descriptors.FlowTaskCollectionNeverRead. {0}: the local variable.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskStartedOnSomePaths" xml:space="preserve">
+    <value>'{0}' に入れた FlowTask は一部の経路でだけ開始され、それ以外の経路では実行されません。すべての経路で開始するか、意図して開始しない箇所で '{0}.Discard()' を呼んでください</value>
+    <comment>Message of Descriptors.FlowTaskStartedOnSomePaths. {0}: the local variable.</comment>
+  </data>
+  <data name="Flow004Title" xml:space="preserve">
+    <value>ライフタイムハンドルは変数に保持する</value>
+  </data>
+  <data name="Flow004Description" xml:space="preserve">
+    <value>ライフタイムハンドル（[LifetimeHandle] の型。ScopedHandle、Subscription&lt;T&gt;、EventSignal&lt;T&gt;）は、作ったスコープが所有し、そのスコープの終了時に解放されます。ハンドルを保持しない、または Dispose も使用もしないローカル変数に入れると、一時停止、購読、イベントリスナーが、スコープの終わりまで黙って生き続けます。ブロックの終わりで解放するには 'using var' を使い、スコープの終わりまで保持するのが意図どおりなら '_ = ...;' と書いてください。</value>
+  </data>
+  <data name="Flow004MessageLifetimeHandleDropped" xml:space="preserve">
+    <value>ここで返される '{0}' は保持されていないため、現在のスコープが終わるまで黙って有効なままです。'using var' で寿命を管理するか、スコープの終わりまで保持するのが意図どおりなら '_' に代入してください</value>
+    <comment>Message of Descriptors.LifetimeHandleDropped. {0}: the handle type (ScopedHandle).</comment>
+  </data>
+  <data name="Flow004MessageLifetimeHandleLocalNeverUsed" xml:space="preserve">
+    <value>'{1}' に入れた '{0}' は Dispose も使用もされないため、現在のスコープが終わるまで有効なままです。'using var' で宣言してください</value>
+    <comment>Message of Descriptors.LifetimeHandleLocalNeverUsed. {0}: the handle type (ScopedHandle); {1}: the local variable.</comment>
+  </data>
+  <data name="Flow005Title" xml:space="preserve">
+    <value>FlowTask の await は FlowTask メソッドの中で行う</value>
+  </data>
+  <data name="Flow005Description" xml:space="preserve">
+    <value>FlowTask の awaitable は現在のスコープの子として待ち、スコープになるのは FlowTask メソッドだけです。Task、ValueTask、void、UniTask、IAsyncEnumerable を返す async メソッドはスコープではありません。フローの外では、そこでの FlowTask の await は FlowMisuseException を投げます。フローの中では、すぐに完了しない await は捨てられ、その await のときに走っているスコープ（ふつうはメソッドを呼んだスコープ）が FlowMisuseException で終わります（メソッドは再開せず、その Task は完了しません）。囲んでいるメソッドが FlowTask を返すようにするか、処理を FlowWorld.Run で開始し、FlowHandle.AsTask() で待ってください。</value>
+  </data>
+  <data name="Flow005Message" xml:space="preserve">
+    <value>FlowTask を返さない async メソッドの中で '{0}' を await しています。フローの中で待てるのは FlowTask メソッドだけです。メソッドが FlowTask を返すようにするか、タスクを FlowWorld.Run で開始して AsTask() で待ってください</value>
+    <comment>Message of Descriptors.FlowAwaitOutsideFlowTask. {0}: the awaited type.</comment>
+  </data>
+  <data name="Flow006Title" xml:space="preserve">
+    <value>ループの中でシグナルの次の Emit を待つなら、ループの前で購読する</value>
+  </data>
+  <data name="Flow006Description" xml:space="preserve">
+    <value>Signal&lt;T&gt;.Next() と EventSignal&lt;T&gt;.Next()（と NextOrClosed）は、呼んだ後の次の Emit で完了します。誰も待っていない間に Emit された値は保持されません。2 回の待機の間に本体が別の処理（演出、待ち時間、別の await）をするループでは、その間の Emit がすべて失われます。ループの前に作った Subscription&lt;T&gt; は、それらをバッファします。BufferPolicy.Latest は最新の値を、BufferPolicy.Queue(capacity, overflow) は届いた順に保持します。処理中の Emit を無視するつもりのループ（演出中のタップなど）は、Next() のままでかまいません。この提案を無視するか、#pragma で抑制してください。</value>
+  </data>
+  <data name="Flow006Message" xml:space="preserve">
+    <value>'{0}.{1}()' をループの中で await しています。{1}() は次の Emit だけを待つため、ループの本体が走っている間に Emit された値は失われます。失いたくないなら、ループの前で一度 '{0}.Subscribe(BufferPolicy...)' で購読し、購読の {1}() を await してください</value>
+    <comment>Message of Descriptors.SignalNextInLoop. {0}: the receiver expression; {1}: Next or NextOrClosed.</comment>
+  </data>
+  <data name="Flow007Title" xml:space="preserve">
+    <value>FlowTask は GetAwaiter() を呼ばずに await する</value>
+  </data>
+  <data name="Flow007Description" xml:space="preserve">
+    <value>FlowTask は遅延実行で、await されたとき、または合成、Flow.Spawn、FlowWorld.Run に開始されたときに始まります。await は GetAwaiter() から始まり、タスクはそこで開始します。そのため、コードに書いた GetAwaiter() の呼び出しも、その awaiter を await しなくても、タスクを今のスコープの子として開始します（フローの外では、呼び出しが例外になります）。awaiter の IsCompleted は呼んだ時点の状態のままで、その後は変わりません。タスクは await してください。待たずに開始するなら、Flow.Spawn か FlowWorld.Run を使ってください。自分の awaitable 型の GetAwaiter メソッドが FlowTask の awaiter を返す場合は報告しません。その型の await が呼ぶためです。手で使った awaiter は、IsCompleted が true のときにしか読めません。OnCompleted で継続を登録するのは、FlowTask メソッドでないメソッドの止まった await と同じく誤用です（FLOW005）。完了した awaiter を意図して手で読むコードは、#pragma でこの警告を抑制してください。</value>
+  </data>
+  <data name="Flow007Message" xml:space="preserve">
+    <value>'{0}.GetAwaiter()' はここでタスクを開始します。FlowTask は await されたときに GetAwaiter の中で開始するためです。await するか、Flow.Spawn か FlowWorld.Run で開始してください</value>
+    <comment>Message of Descriptors.DirectGetAwaiter. {0}: the receiver expression ('this' when there is none).</comment>
+  </data>
+  <data name="Flow008Title" xml:space="preserve">
+    <value>Flow.Spawn のハンドルを黙って捨てない</value>
+  </data>
+  <data name="Flow008Description" xml:space="preserve">
+    <value>Flow.Spawn は現在のスコープの子を開始し、スコープはその子を待ちません。スコープが終わると（スコープのコードが普通に戻ったときも）子は止まります。UniTask の Forget() と同じく文として書くと、走り続ける処理（BGM、パーティクル、再試行のループ）に見えますが、開始したフローが短命なら、そのフローが戻った時点で子は黙って止まります。このスコープと一緒に終わってよい子（画面に属するループなど）は '_ = Flow.Spawn(task);' と書いてその判断を見えるようにし、このフローより長く動かす処理は FlowWorld.Run（フローの中では FlowWorld.Current.Run）で開始してください。そのフローはこのフローから独立し、例外は OnUnhandledException に届き、Clock を渡さなければ World の既定の Clock で動きます。FlowTask メソッドの中に式で書いたラムダの本体（'items.ForEach(x =&gt; Flow.Spawn(Do(x)))'）と、ハンドルを入れて一度も読まないローカル変数（'var h = Flow.Spawn(task);'）も同じく報告します。'_ ='（と 'var _ ='）で捨てた呼び出し、フィールドや読むローカル変数に入れた呼び出し、ハンドルを使う、渡す、返す呼び出しと、FlowTask メソッドの外に式で書いたラムダの本体（そこで今すぐ走る Spawn は例外になる。Assert.Throws の書き方）は報告しません。イベントハンドラの中の Spawn は FLOW009 が代わりに報告します。</value>
+  </data>
+  <data name="Flow008Message" xml:space="preserve">
+    <value>Flow.Spawn で開始した子は、現在のスコープの終わりで止まります。このフローより長く動かすなら world.Run（フローの中では FlowWorld.Current.Run）で開始し、このスコープと一緒に終わってよいなら '_ = Flow.Spawn(...)' と書いてください</value>
+    <comment>Message of Descriptors.SpawnHandleDropped.</comment>
+  </data>
+  <data name="Flow009Title" xml:space="preserve">
+    <value>イベントハンドラの中で Flow.Spawn しない</value>
+  </data>
+  <data name="Flow009Description" xml:space="preserve">
+    <value>FlowTask メソッドの中に書いたイベントハンドラは、後でイベントが発火したときに走り、そこでの Flow.Spawn は、そのときの現在のスコープの子を開始します。フローの外なら FlowMisuseException を投げ、イベントを発火したフローの中なら、そのフローの子を開始して、そのフローと一緒に終わります。そうした処理は、フローの実行中に取っておいた FlowWorld の Run で開始するか（購読の前に 'var world = FlowWorld.Current;' と書きます。ハンドラの中の FlowWorld.Current は、フローの外では null、別のフローの中ではそのフローの World です）、FlowBridge.FromCallback でイベントをシグナルにしてフローの中で await してください。Run は World のスレッドでしか動きません。別のスレッドで発火しうるイベントでは、ハンドラに 'world.Post(() =&gt; world.Run(...))' と書いてください。フローの中で FlowBridge.FromCallback で作ったシグナルは、別のスレッドからの Emit を自分で World のスレッドへ渡します。</value>
+  </data>
+  <data name="Flow009Message" xml:space="preserve">
+    <value>このイベントハンドラの中の Flow.Spawn はイベントが発火したときに走るため、フローが無ければ FlowMisuseException になり、別のフローの中なら、そのフローの子になって一緒に終わります。このフローで取っておいた FlowWorld の Run で開始するか（フローの外では null になる FlowWorld.Current ではなく）、FlowBridge.FromCallback でイベントをシグナルにして、このフローの中で await してください</value>
+    <comment>Message of Descriptors.SpawnInEventHandler.</comment>
+  </data>
+  <data name="CodeFixRethrowCancellation" xml:space="preserve">
+    <value>catch 節を 'throw;' で終える</value>
+    <comment>FLOW001 (CatchCancellationCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixRemoveCancellationCatch" xml:space="preserve">
+    <value>catch 節を消す（キャンセルはそのまま伝わる）</value>
+    <comment>FLOW001 (CatchCancellationCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixExcludeFlowCancellation" xml:space="preserve">
+    <value>'when ({0} is not FlowCanceledException)' を足す（キャンセルはそのまま伝わる）</value>
+    <comment>FLOW001 (CatchCancellationCodeFixProvider). {0}: the catch variable.</comment>
+  </data>
+  <data name="CodeFixBridgeWithFromTask" xml:space="preserve">
+    <value>FlowBridge.FromTask でブリッジする（スコープのキャンセルがタスクに届く）</value>
+    <comment>FLOW002 (BridgeAwaitCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixBridgeWithAsFlow" xml:space="preserve">
+    <value>走っているタスクを .AsFlow() でブリッジする（キャンセルは届かない）</value>
+    <comment>FLOW002 (BridgeAwaitCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixAwait" xml:space="preserve">
+    <value>FlowTask を await する</value>
+    <comment>FLOW003 (StartFlowTaskCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixSpawn" xml:space="preserve">
+    <value>Flow.Spawn で子として開始する（このスコープの終わりで止まる）</value>
+    <comment>FLOW003 (StartFlowTaskCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixRun" xml:space="preserve">
+    <value>FlowWorld.Current.Run で独立して実行する</value>
+    <comment>FLOW003 (StartFlowTaskCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixUsingVar" xml:space="preserve">
+    <value>'using var {0}' で宣言する</value>
+    <comment>FLOW004 (UsingLifetimeHandleCodeFixProvider). {0}: the new local variable.</comment>
+  </data>
+  <data name="CodeFixUsingDeclaration" xml:space="preserve">
+    <value>'{0}' の宣言に 'using' を付ける</value>
+    <comment>FLOW004 (UsingLifetimeHandleCodeFixProvider). {0}: the local variable.</comment>
+  </data>
+  <data name="CodeFixSubscribeBeforeLoop" xml:space="preserve">
+    <value>ループの前で購読する（BufferPolicy.Latest）</value>
+    <comment>FLOW006 (SubscribeBeforeLoopCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixDiscardSpawnHandle" xml:space="preserve">
+    <value>'_ =' でハンドルを破棄する（子はこのスコープの終わりで止まる）</value>
+    <comment>FLOW008 (SpawnHandleCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixRunInsteadOfSpawn" xml:space="preserve">
+    <value>FlowWorld.Current.Run で独立して実行する（このフローが終わっても止まらない）</value>
+    <comment>FLOW008 (SpawnHandleCodeFixProvider).</comment>
+  </data>
+  <data name="Flow010Title" xml:space="preserve">
+    <value>finally の await は Flow.NonCancelable で守る</value>
+  </data>
+  <data name="Flow010Description" xml:space="preserve">
+    <value>スコープのキャンセルがそのコードに届いた後は、catch と finally の中の await は最後まで走ります。その前に（return、try ブロックの終わり、例外で）入った finally と、例外で入った catch は、まだ後始末ではありません。そこの await の最中にキャンセルが来ると（シーンの切り替え、ほかの枝が勝った Race）、その await が FlowCanceledException を投げます。ブロックの残り（その後の Destroy や保存）は飛び、ブロックが運んでいた例外は置き換わって消えます。Flow.NonCancelable(task) で await すると、タスクとブロックの残りが走り、キャンセルは印のない次の await でスコープに届きます。印を付けるのは、ひとりでに終わる後始末（アニメーション、保存）だけにしてください。印を付けた入力待ちやほかのフローの待ちは取り消せず、終わるまでフローを止めます（後始末で 10 秒待ち続けている取り消されたスコープは FlowWarningKind.LongCleanup で報告されます）。World.Dispose は印を付けた await も終わらせます。FlowTask メソッドの中で、finally の中の FlowTask の await と、FlowCanceledException も OperationCanceledException も名指ししない catch のうち throw するものの中の FlowTask の await を報告します。Flow.NonCancelable を付けた await と、それで初期化したローカル変数の await、例外を処理して終わる catch とキャンセルを受ける catch の中の await は報告しません。</value>
+  </data>
+  <data name="Flow010Message" xml:space="preserve">
+    <value>finally（または例外を渡す catch）の中のこの await の最中にキャンセルが来ると、ブロックの残りが飛び、運んでいた例外が置き換わります。ひとりでに終わる後始末は await Flow.NonCancelable(...) で最後まで走らせてください</value>
+    <comment>Message of Descriptors.CleanupAwaitNotProtected.</comment>
+  </data>
+  <data name="CodeFixNonCancelable" xml:space="preserve">
+    <value>Flow.NonCancelable で await する（ひとりでに終わる後始末だけ）</value>
+    <comment>FLOW010 (NonCancelableCodeFixProvider).</comment>
+  </data>
+</root>

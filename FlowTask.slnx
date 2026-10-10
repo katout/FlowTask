@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FlowTask.Analyzers.CodeFixes/FlowTask.Analyzers.CodeFixes.csproj" />
+    <Project Path="src/FlowTask.Analyzers/FlowTask.Analyzers.csproj" />
+    <Project Path="src/FlowTask/FlowTask.csproj" />
+    <Project Path="src/FlowTask.Godot/FlowTask.Godot.csproj" />
+    <Project Path="src/FlowTask.R3/FlowTask.R3.csproj" />
+    <Project Path="src/FlowTask.Testing.NUnit/FlowTask.Testing.NUnit.csproj" />
+    <Project Path="src/FlowTask.Testing/FlowTask.Testing.csproj" />
+    <Project Path="src/FlowTask.UniTask/FlowTask.UniTask.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FlowTask.Analyzers.Tests/FlowTask.Analyzers.Tests.csproj" />
+    <Project Path="tests/FlowTask.Bridges.Tests/FlowTask.Bridges.Tests.csproj" />
+    <Project Path="tests/FlowTask.Core.Tests/FlowTask.Core.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Godot 4.4.1+ (.NET) integration: drives a World from the SceneTree and bridges Godot signals / SignalAwaiter.
+       Depends only on FlowTask and GodotSharp. -->
+  <PropertyGroup>
+    <!--
+      net8.0, not net10.0: GodotSharp 4.4.1 targets net8.0 and so do the game projects Godot 4.4 creates; a net8.0 project
+      cannot reference a net10.0 library. This project (and a game referencing FlowTask) uses the netstandard2.1 build
+      of FlowTask.
+    -->
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>10.0</LangVersion>
+    <RootNamespace>Katout.FlowTask.Godot</RootNamespace>
+    <AssemblyName>FlowTask.Godot</AssemblyName>
+    <PackageId>FlowTask.Godot</PackageId>
+    <Description>FlowTask integration for the .NET edition of Godot 4.4.1 or later: a FlowWorld driven from _Process (a FlowWorldNode subclass can drive one at the physics rate), Godot signal and SignalAwaiter bridges, node lifetime helpers.</Description>
+    <PackageTags>$(PackageTags);godot4</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Callable.CreateWithUnsafeTrampoline (any-arity signal bridge). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!--
+      Godot dispatches engine callbacks (_EnterTree, _Process, ...) to C# only through code emitted by Godot's source
+      generators. Without them the overrides in FlowWorldNode are never called, not even from a subclass in the game
+      assembly (verified against Godot 4.4.1). The ScriptPath generator is disabled: this assembly is not a Godot
+      project, so its classes have no res:// path; Godot creates a script for them on demand.
+    -->
+    <GodotProjectDir>$(MSBuildProjectDirectory)\</GodotProjectDir>
+    <GodotDisabledSourceGenerators>ScriptPathAttribute</GodotDisabledSourceGenerators>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="GodotSharp" />
+    <PackageReference Include="Godot.SourceGenerators" PrivateAssets="all" />
+    <ProjectReference Include="..\FlowTask\FlowTask.csproj" />
+  </ItemGroup>
+</Project>

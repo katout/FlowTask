@@ -1,0 +1,25 @@
+{
+    "name": "FlowTask.Unity.Tests",
+    "rootNamespace": "Katout.FlowTask.Unity.Tests",
+    "references": [
+        "FlowTask",
+        "FlowTask.Unity",
+        "FlowTask.Unity.UI",
+        "FlowTask.Verification.AllocationProbe",
+        "UnityEngine.UI",
+        "UnityEngine.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

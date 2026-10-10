@@ -1,0 +1,40 @@
+<Project Sdk="Godot.NET.Sdk/4.4.1">
+  <!--
+    Headless smoke test for FlowTask.Godot on the real engine (tools/godot/run-smoke.ps1).
+    It also compiles the unmodified FlowTask test suite (tests/FlowTask.Core.Tests/*.cs, linked) and runs it inside
+    the Godot process with NUnit (CoreSuiteRunner.cs).
+  -->
+  <PropertyGroup>
+    <!-- A Godot 4.4 game project targets net8.0, so this project exercises the netstandard2.1 build of FlowTask, as games do. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>GodotSmoke</RootNamespace>
+    <!-- Same codegen settings as tests/FlowTask.Core.Tests: struct state machines for the allocation tests. -->
+    <Optimize>true</Optimize>
+    <!-- CS4014: the linked core tests start flows with Flow.Spawn without awaiting the handle. -->
+    <NoWarn>$(NoWarn);CS1998;CS4014;NUnit2045</NoWarn>
+    <!-- Godot.NET.Sdk's implicit references carry their own versions (NU1008 under central package management). -->
+    <DisableImplicitGodotSharpReferences>true</DisableImplicitGodotSharpReferences>
+    <DisableImplicitGodotGeneratorReferences>true</DisableImplicitGodotGeneratorReferences>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FlowTask\FlowTask.csproj" />
+    <ProjectReference Include="..\..\src\FlowTask.Godot\FlowTask.Godot.csproj" />
+    <ProjectReference Include="..\..\src\FlowTask.Testing\FlowTask.Testing.csproj" />
+    <ProjectReference Include="..\..\src\FlowTask.Testing.NUnit\FlowTask.Testing.NUnit.csproj" />
+    <PackageReference Include="GodotSharp" />
+    <PackageReference Include="GodotSharpEditor" Condition="'$(Configuration)'=='Debug'" />
+    <PackageReference Include="Godot.SourceGenerators" />
+    <PackageReference Include="NUnit" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\FlowTask.Core.Tests\*.cs" LinkBase="CoreTests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The Godot samples (samples/godot, docs/en/godot/samples.md), checked by Samples/ with pretend input. Their project
+         files and the demo stay out: this project has its own autoload. -->
+    <Compile Include="..\..\samples\godot\**\*.cs" Exclude="..\..\samples\godot\FlowAutoload.cs;..\..\samples\godot\Demo\**;..\..\samples\godot\.godot\**" LinkBase="Samples\Linked" />
+  </ItemGroup>
+</Project>

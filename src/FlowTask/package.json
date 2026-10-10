@@ -1,0 +1,22 @@
+{
+  "name": "com.katout.flowtask",
+  "version": "0.1.0-preview.1",
+  "displayName": "FlowTask",
+  "description": "Structured-concurrency async game-flow runtime for C#: FlowTask, scopes with unwinding cancellation, clocks, signals and combinators. Engine-independent (netstandard2.1 / C# 10), IL2CPP-safe, allocation-free in steady state. Ships the FlowTask Roslyn analyzers in Analyzers/.",
+  "unity": "2023.1",
+  "license": "MIT",
+  "documentationUrl": "https://katout.github.io/FlowTask/",
+  "changelogUrl": "https://github.com/katout/FlowTask/blob/main/CHANGELOG.md",
+  "author": {
+    "name": "katout"
+  },
+  "keywords": [
+    "async",
+    "await",
+    "structured concurrency",
+    "game flow",
+    "cancellation",
+    "il2cpp"
+  ],
+  "dependencies": {}
+}

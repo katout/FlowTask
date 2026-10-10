@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Tests for FlowTask.Analyzers / FlowTask.Analyzers.CodeFixes. A small harness compiles C# 9 snippets against
+    FlowTask.dll and the running .NET reference set, runs the analyzers with CompilationWithAnalyzers and applies
+    code fixes in an AdhocWorkspace. C# 9 is the language version of Unity users' scripts. Roslyn 3.8.0 is used on
+    purpose: it is the oldest host the analyzer supports (the Roslyn of Unity 2021.3 and of the .NET 5 SDK). The UPM
+    packages need Unity 2023.1 (Roslyn 4.x), but the analyzer also ships in the
+    NuGet package, and nothing it needs is newer than 3.8.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Katout.FlowTask.Analyzers.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FlowTask\FlowTask.csproj" />
+    <ProjectReference Include="..\..\src\FlowTask.Analyzers\FlowTask.Analyzers.csproj" />
+    <ProjectReference Include="..\..\src\FlowTask.Analyzers.CodeFixes\FlowTask.Analyzers.CodeFixes.csproj" />
+  </ItemGroup>
+</Project>

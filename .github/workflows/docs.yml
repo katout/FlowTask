@@ -1,0 +1,68 @@
+# Builds the documentation site (website/, from the Markdown in docs/) and publishes it to GitHub Pages.
+#
+# The site describes the released packages, not main: the analyzers' help links and the runtime messages of a released
+# version point into it, and main may already have renamed or renumbered what they name. So release.yml publishes it
+# after the packages, and a run by hand publishes the ref chosen in the Actions tab (normally the latest tag). Pull
+# requests and pushes to main that change the site only build it (the build reads docs/ and website/ only), so that
+# main is known to build before a tag fixes its contents.
+# Pages must be set to "GitHub Actions" in the repository settings (docs/maintainers/ci-and-release.md).
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', 'website/**', '.github/workflows/docs.yml']
+  pull_request:
+    paths: ['docs/**', 'website/**', '.github/workflows/docs.yml']
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A literal name for the same reason as in ci.yml (github.workflow is the caller's name in a called workflow).
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - name: Build
+        working-directory: website
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: website/dist
+
+  deploy:
+    # In a run called by release.yml, github.ref_type is the caller's: a tag.
+    if: ${{ github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # One deployment at a time, whichever ref it comes from, and none is canceled halfway.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

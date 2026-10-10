@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Every NuGet package carries the same readme, src/package-readme.md. This is a targets file because IsPackable is
+    set in the project files, after the props.
+  -->
+  <PropertyGroup Condition="'$(IsPackable)' != 'false'">
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <None Include="$(RepoRoot)src/package-readme.md" Pack="true" PackagePath="README.md" Visible="false" />
+  </ItemGroup>
+</Project>

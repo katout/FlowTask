@@ -1,0 +1,6 @@
+# Godot cache and C# build output (Godot.NET.Sdk builds into .godot/mono/temp/)
+.godot/
+bin/
+obj/
+*.user
+*.log

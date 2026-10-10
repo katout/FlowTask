@@ -1,0 +1,31 @@
+{
+    "name": "FlowTask.UniTask.Tests",
+    "rootNamespace": "Katout.FlowTask.UniTaskTests",
+    "references": [
+        "FlowTask",
+        "FlowTask.Unity",
+        "FlowTask.UniTask",
+        "UniTask",
+        "UnityEngine.TestRunner"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS",
+        "FLOWTASK_UNITASK"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.cysharp.unitask",
+            "expression": "2.0.0",
+            "define": "FLOWTASK_UNITASK"
+        }
+    ],
+    "noEngineReferences": false
+}

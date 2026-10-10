@@ -1,0 +1,16 @@
+---
+// The site's root: Japanese readers go to /ja/, everyone else to /en/.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>FlowTask</title>
+    <meta http-equiv="refresh" content={`0; url=${base}/en/`} />
+    <script is:inline define:vars={{ base }}>
+      location.replace(`${base}/${navigator.language.startsWith('ja') ? 'ja' : 'en'}/`);
+    </script>
+  </head>
+  <body><a href={`${base}/en/`}>FlowTask documentation</a></body>
+</html>

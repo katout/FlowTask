@@ -1,0 +1,29 @@
+{
+  "name": "com.katout.flowtask.unity",
+  "version": "0.1.0-preview.1",
+  "displayName": "FlowTask for Unity",
+  "description": "Unity integration for FlowTask: PlayerLoop driver for the default World (a Tick at the start of Update, configurable flush points), UnityEvent -> Signal, AsyncOperation / Awaitable -> FlowTask bridges, GameObject lifetime binding, optional uGUI helpers and a Scope Tree editor window.",
+  "unity": "2023.1",
+  "license": "MIT",
+  "documentationUrl": "https://katout.github.io/FlowTask/",
+  "changelogUrl": "https://github.com/katout/FlowTask/blob/main/CHANGELOG.md",
+  "author": {
+    "name": "katout"
+  },
+  "keywords": [
+    "async",
+    "flow",
+    "playerloop",
+    "structured concurrency"
+  ],
+  "dependencies": {
+    "com.katout.flowtask": "0.1.0-preview.1"
+  },
+  "samples": [
+    {
+      "displayName": "Scenarios",
+      "description": "A confirm dialog, an enemy AI, a tutorial, a purchase, pausing and parallel loading written with FlowTask, and a demo scene (Demo/Demo.unity) to try them. Uses uGUI.",
+      "path": "Samples~/Scenarios"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+# Monthly updates of the actions in .github/workflows (pinned to commit SHAs) and of the site's npm packages, each
+# ecosystem in one pull request. A release is taken only after it has been out for a week: a compromised version is
+# usually found and pulled within days.
+#
+# NuGet is left out on purpose. Most versions in Directory.Packages.props are the lowest that the packages ask of their
+# users (UniTask, R3, NUnit's VersionOverride) or follow something else (Roslyn 3.8, the Godot version), and a
+# newer one would only narrow what users can combine. A known vulnerability stops the build (NuGetAuditMode=all).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']
+    ignore:
+      # Kept at v4.3.2 on purpose (unity.yml); it also receives the Unity license secrets.
+      - dependency-name: game-ci/unity-test-runner
+
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      website:
+        patterns: ['*']

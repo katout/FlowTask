@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    R3 Observable <-> FlowTask Signal bridge. A separate package so the core (FlowTask) stays dependency-free.
+    Uses only the public Core API (FlowBridge.FromCallback / EventSignal / Signal.Subscribe / FlowWorld.Run).
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <LangVersion>10.0</LangVersion>
+    <RootNamespace>Katout.FlowTask</RootNamespace>
+    <AssemblyName>FlowTask.R3</AssemblyName>
+    <PackageId>FlowTask.R3</PackageId>
+    <Description>Bridges Cysharp R3 Observable and FlowTask Signal in both directions, with scope-owned subscriptions.</Description>
+    <PackageTags>$(PackageTags);r3;reactive;observable</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)'=='net10.0'">
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="R3" />
+    <ProjectReference Include="..\FlowTask\FlowTask.csproj" />
+  </ItemGroup>
+</Project>

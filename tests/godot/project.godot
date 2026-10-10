@@ -1,0 +1,18 @@
+; Engine configuration file.
+; FlowTask headless smoke test. Run it with tools/godot/run-smoke.ps1.
+
+config_version=5
+
+[application]
+
+config/name="FlowTask Godot Smoke"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.4", "C#")
+
+[autoload]
+
+FlowAutoload="*res://FlowAutoload.cs"
+
+[dotnet]
+
+project/assembly_name="GodotSmoke"

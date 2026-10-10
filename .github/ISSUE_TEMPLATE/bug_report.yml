@@ -1,0 +1,39 @@
+name: Bug report / 不具合の報告
+description: Something does not work as documented. / 文書のとおりに動かない。
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing issues first. Report vulnerabilities privately ([SECURITY.md](https://github.com/katout/FlowTask/blob/main/SECURITY.md)), not here.
+        既存の Issue を先に検索してください。脆弱性はここではなく非公開で報告してください（SECURITY.md）。English or Japanese is fine. / 英語でも日本語でも構いません。
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened / 起きたこと
+      description: What you expected, and what happened instead. Include the exception or the unhandled-exception report if there is one. / 期待した動きと、実際の動き。例外や、未処理の例外の報告があれば貼ってください。
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction / 再現手順
+      description: The smallest code that shows the problem (a TestWorld test is ideal). / 問題が起きる最小のコード（TestWorld のテストだと理想的です）。
+      render: csharp
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: FlowTask version / FlowTask の版
+      placeholder: 0.1.0-preview.1
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment / 環境
+      description: .NET version, or Unity version and scripting backend (Mono / IL2CPP) and platform, or Godot version. / .NET の版、または Unity の版とスクリプトバックエンドとプラットフォーム、または Godot の版。
+      placeholder: Unity 6000.3, IL2CPP, Android
+    validations:
+      required: true

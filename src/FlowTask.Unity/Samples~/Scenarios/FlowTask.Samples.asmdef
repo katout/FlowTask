@@ -1,0 +1,26 @@
+{
+    "name": "FlowTask.Samples",
+    "rootNamespace": "Katout.FlowTask.Samples",
+    "references": [
+        "FlowTask",
+        "FlowTask.Unity",
+        "FlowTask.Unity.UI",
+        "UnityEngine.UI",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.inputsystem",
+            "expression": "1.0.0",
+            "define": "FLOWTASK_SAMPLES_INPUT_SYSTEM"
+        }
+    ],
+    "noEngineReferences": false
+}

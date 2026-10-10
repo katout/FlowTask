@@ -1,0 +1,28 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Library code: every CA rule, and code style in the build. Rules switched off are listed in .editorconfig. -->
+  <PropertyGroup>
+    <AnalysisMode>All</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!--
+      Required for IDE0005 in the build, and every public member of a shipped library is documented (CS1591). The
+      analyzer projects are not packages users call, so their public Roslyn overrides need no XML docs.
+    -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(MSBuildProjectName.StartsWith('FlowTask.Analyzers'))">
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    NuGet metadata shared by every package; a project adds its own tags with $(PackageTags);... The PDBs go into a
+    symbol package (.snupkg) next to each .nupkg. The analyzer projects are not packed (IsPackable=false), so the symbol
+    settings do nothing there; their Release builds have no PDB (see FlowTask.Analyzers.csproj).
+  -->
+  <PropertyGroup>
+    <PackageTags>async;await;structured-concurrency;cancellation;coroutine;game;gamedev;unity;godot</PackageTags>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+</Project>

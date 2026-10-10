@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Diagnostic and code fix strings of the FlowTask analyzers in English, the neutral language (built into the DLL).
+  Keys: FlowNNNTitle / FlowNNNDescription / FlowNNNMessage[Descriptor] for the rules (Descriptors.cs), CodeFix* for the
+  code fix titles. Resources.resx and Resources.ja.resx have the same keys and the same {n} placeholders
+  (LocalizationTests). Titles and messages end without a period, descriptions with one.
+-->
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Flow001Title" xml:space="preserve">
+    <value>Do not stop FlowCanceledException in a catch clause</value>
+  </data>
+  <data name="Flow001Description" xml:space="preserve">
+    <value>FlowCanceledException is thrown at an await to unwind a canceled scope. A catch clause of a FlowTask method that can take it must let it pass. A clause of FlowCanceledException, or of OperationCanceledException from which it derives, must end every path with 'throw': one that returns or goes on keeps the canceled scope running, its later awaits run as in a live scope (a loop goes on), and when its code returns, the swallowed cancellation is reported at run time and the scope ends canceled anyway. A catch-all ('catch', 'catch (Exception)') runs its body for every cancellation, even when it rethrows: add 'when (e is not FlowCanceledException)', which keeps external cancellations (the OperationCanceledException of a Task canceled outside the flow) in the handler; 'when (e is not OperationCanceledException)' lets them pass too, and one that nothing catches ends the flow with an unhandled exception. To handle only external cancellations, write 'catch (OperationCanceledException e) when (e is not FlowCanceledException)'. A clause whose try block has no await, or whose filter is false for FlowCanceledException, is not reported.</value>
+  </data>
+  <data name="Flow001MessageCatchAll" xml:space="preserve">
+    <value>This catch clause also takes FlowCanceledException, which unwinds a canceled scope, and runs its body for it; add 'when (e is not FlowCanceledException)' to let the cancellation pass</value>
+    <comment>Message of Descriptors.CatchAllTakesCancellation.</comment>
+  </data>
+  <data name="Flow001MessageNotRethrown" xml:space="preserve">
+    <value>This catch clause takes FlowCanceledException and does not end with 'throw', so the canceled scope would keep running; end it with 'throw;', or remove it</value>
+    <comment>Message of Descriptors.CancellationCatchNotRethrown.</comment>
+  </data>
+  <data name="Flow001MessageOperationCanceledNotRethrown" xml:space="preserve">
+    <value>This catch clause also takes FlowCanceledException, which derives from OperationCanceledException, and does not end with 'throw', so a canceled scope would keep running; end it with 'throw;', or take only external cancellations with 'when (e is not FlowCanceledException)'</value>
+    <comment>Message of Descriptors.OperationCanceledCatchNotRethrown.</comment>
+  </data>
+  <data name="Flow002Title" xml:space="preserve">
+    <value>Bridge external awaitables before awaiting them in a FlowTask method</value>
+  </data>
+  <data name="Flow002Description" xml:space="preserve">
+    <value>Only FlowTask awaitables register with the current scope: those whose awaiter is FlowTask.Awaiter or FlowTask&lt;T&gt;.Awaiter (FlowTask, Once&lt;T&gt;, TaskBridge, ...). A canceled scope cannot be unwound while its flow waits on any other awaitable (Task, ValueTask, UniTask, Unity Awaitable, Godot SignalAwaiter, Task.Yield(), a ConfigureAwait result), so the scope ends with a FlowMisuseException as soon as it stops on one. An awaitable that completes synchronously does not stop the flow, so the runtime check depends on timing; FLOW002 reports every such await at compile time. Bridge the operation with FlowBridge.FromTask(ct =&gt; ...), which passes the scope's cancellation to it, or with .AsFlow(), which wraps an operation that is already running and does not cancel it.</value>
+  </data>
+  <data name="Flow002MessageForeignAwaitTaskLike" xml:space="preserve">
+    <value>'{0}' is not a FlowTask awaitable: if it does not complete immediately, the scope ends here with a FlowMisuseException, because a canceled scope cannot be unwound while it waits on it; bridge it with FlowBridge.FromTask(ct =&gt; ...) so that cancellation reaches it, or with .AsFlow() for a task that is already running</value>
+    <comment>Message of Descriptors.ForeignAwaitTaskLike. {0}: the awaited type.</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitWithAsFlow" xml:space="preserve">
+    <value>'{0}' is not a FlowTask awaitable: if it does not complete immediately, the scope ends here with a FlowMisuseException, because a canceled scope cannot be unwound while it waits on it; bridge it with .AsFlow()</value>
+    <comment>Message of Descriptors.ForeignAwaitWithAsFlow. {0}: the awaited type.</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitYield" xml:space="preserve">
+    <value>'{0}' resumes outside the World schedule, so the scope ends here with a FlowMisuseException; wait for the next frame with FlowTask.NextFrame()</value>
+    <comment>Message of Descriptors.ForeignAwaitYield. {0}: the awaited type (YieldAwaitable).</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitOther" xml:space="preserve">
+    <value>'{0}' is not a FlowTask awaitable: if it does not complete immediately, the scope ends here with a FlowMisuseException, because a canceled scope cannot be unwound while it waits on it; wrap it in a Task and bridge it with FlowBridge.FromTask(ct =&gt; ...)</value>
+    <comment>Message of Descriptors.ForeignAwaitOther. {0}: the awaited type.</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitForEach" xml:space="preserve">
+    <value>'await foreach' awaits '{0}' on every iteration, and the scope ends with a FlowMisuseException when an iteration does not complete immediately; consume the sequence outside the flow and bridge the result with FlowBridge.FromTask(ct =&gt; ...)</value>
+    <comment>Message of Descriptors.ForeignAwaitForEach. {0}: the type returned by MoveNextAsync (ValueTask&lt;bool&gt;).</comment>
+  </data>
+  <data name="Flow002MessageForeignAwaitUsing" xml:space="preserve">
+    <value>'await using' awaits the '{0}' that DisposeAsync returns when the block ends, and the scope ends with a FlowMisuseException when it does not complete immediately; dispose the resource with a synchronous 'using', or in a finally block with 'await Flow.NonCancelable(FlowBridge.FromTask(_ =&gt; resource.DisposeAsync().AsTask()))'</value>
+    <comment>Message of Descriptors.ForeignAwaitUsing. {0}: the type DisposeAsync returns (ValueTask).</comment>
+  </data>
+  <data name="Flow003Title" xml:space="preserve">
+    <value>A FlowTask must be awaited or started</value>
+  </data>
+  <data name="Flow003Description" xml:space="preserve">
+    <value>FlowTasks are lazy: calling a FlowTask method only creates the task; it runs when it is awaited, when it is passed to Flow.Spawn or FlowWorld.Run, or when a combinator it was passed to starts. A FlowTask that is dropped, discarded with '_ =', released with Discard() right after it is created, or stored in a variable that is not read on every path never runs. Flow.Spawn starts a child that stops when the current scope ends; work that must outlive the flow, which UniTask code would Forget(), is started with FlowWorld.Run. At run time, a FlowTask that is never started simply does not run, and nothing reports it.</value>
+  </data>
+  <data name="Flow003MessageFlowTaskDropped" xml:space="preserve">
+    <value>This FlowTask is never awaited or started, so it never runs; await it, or start it with world.Run if it must outlive this flow (Flow.Spawn stops it when the current scope ends)</value>
+    <comment>Message of Descriptors.FlowTaskDropped.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskDiscarded" xml:space="preserve">
+    <value>Discarding a FlowTask with '_ =' does not run it; await it, or start it with world.Run if it must outlive this flow (Flow.Spawn stops it when the current scope ends)</value>
+    <comment>Message of Descriptors.FlowTaskDiscarded.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskDiscardedWithoutRunning" xml:space="preserve">
+    <value>'Discard()' releases this FlowTask without ever running it (it is not UniTask's Forget); await it, or start it with world.Run if it must outlive this flow (Flow.Spawn stops it when the current scope ends)</value>
+    <comment>Message of Descriptors.FlowTaskDiscardedWithoutRunning.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskLocalNeverRead" xml:space="preserve">
+    <value>The FlowTask stored in '{0}' is never awaited or started, so it never runs</value>
+    <comment>Message of Descriptors.FlowTaskLocalNeverRead. {0}: the local variable.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskCollectionNeverRead" xml:space="preserve">
+    <value>The FlowTasks stored in '{0}' are never awaited or started, so they never run; pass the collection to FlowTask.WhenAll or Race, or start each task</value>
+    <comment>Message of Descriptors.FlowTaskCollectionNeverRead. {0}: the local variable.</comment>
+  </data>
+  <data name="Flow003MessageFlowTaskStartedOnSomePaths" xml:space="preserve">
+    <value>The FlowTask stored in '{0}' is started only on some paths and never runs on the others; start it on every path, or call '{0}.Discard()' where it is skipped on purpose</value>
+    <comment>Message of Descriptors.FlowTaskStartedOnSomePaths. {0}: the local variable.</comment>
+  </data>
+  <data name="Flow004Title" xml:space="preserve">
+    <value>Store lifetime handles in a variable</value>
+  </data>
+  <data name="Flow004Description" xml:space="preserve">
+    <value>Lifetime handles ([LifetimeHandle]: ScopedHandle, Subscription&lt;T&gt;, EventSignal&lt;T&gt;) are owned by the scope that created them and released when that scope ends. When the handle is not stored, or stored in a local that is never disposed or used, a pause, subscription or event listener silently lives until the end of the scope. Use 'using var' to release it at the end of the block, or write '_ = ...;' when scope lifetime is intended.</value>
+  </data>
+  <data name="Flow004MessageLifetimeHandleDropped" xml:space="preserve">
+    <value>The '{0}' returned here is not stored, so it silently stays active until the current scope ends; use 'using var' to control its lifetime, or assign it to '_' if scope lifetime is intended</value>
+    <comment>Message of Descriptors.LifetimeHandleDropped. {0}: the handle type (ScopedHandle).</comment>
+  </data>
+  <data name="Flow004MessageLifetimeHandleLocalNeverUsed" xml:space="preserve">
+    <value>The '{0}' stored in '{1}' is never disposed or used, so it stays active until the current scope ends; declare it with 'using var'</value>
+    <comment>Message of Descriptors.LifetimeHandleLocalNeverUsed. {0}: the handle type (ScopedHandle); {1}: the local variable.</comment>
+  </data>
+  <data name="Flow005Title" xml:space="preserve">
+    <value>Await FlowTask awaitables only in FlowTask methods</value>
+  </data>
+  <data name="Flow005Description" xml:space="preserve">
+    <value>A FlowTask awaitable waits as a child of the current scope, and only a FlowTask method is a scope. An async method returning Task, ValueTask, void, UniTask or IAsyncEnumerable is not one: outside a flow, its await of a FlowTask throws FlowMisuseException; in a flow, an await that does not complete at once is dropped, and the scope that runs at that await (usually the one that called the method) ends with a FlowMisuseException (the method never resumes, and its Task never completes). Make the enclosing method return FlowTask, or start the work with FlowWorld.Run and wait for it with FlowHandle.AsTask().</value>
+  </data>
+  <data name="Flow005Message" xml:space="preserve">
+    <value>'{0}' is awaited in an async method that does not return FlowTask, and only a FlowTask method can wait in a flow; make the method return FlowTask, or start the task with FlowWorld.Run and wait for its AsTask()</value>
+    <comment>Message of Descriptors.FlowAwaitOutsideFlowTask. {0}: the awaited type.</comment>
+  </data>
+  <data name="Flow006Title" xml:space="preserve">
+    <value>Subscribe before a loop that awaits the next emit of a signal</value>
+  </data>
+  <data name="Flow006Description" xml:space="preserve">
+    <value>Signal&lt;T&gt;.Next() and EventSignal&lt;T&gt;.Next() (and NextOrClosed) complete with the next emit after the call; values emitted while nobody waits are not kept. In a loop whose body does other work between two waits (an animation, a delay, another await), every emit during that work is dropped. A Subscription&lt;T&gt; created before the loop buffers them: BufferPolicy.Latest keeps the newest, BufferPolicy.Queue(capacity, overflow) keeps them in order. A loop that means to ignore emits while it is busy (taps during an animation) can keep Next(): leave this suggestion, or suppress it with #pragma.</value>
+  </data>
+  <data name="Flow006Message" xml:space="preserve">
+    <value>'{0}.{1}()' is awaited in a loop: values emitted while the loop body runs are dropped, because {1}() waits only for the next emit; if they must not be lost, subscribe once before the loop with '{0}.Subscribe(BufferPolicy...)' and await the subscription's {1}()</value>
+    <comment>Message of Descriptors.SignalNextInLoop. {0}: the receiver expression; {1}: Next or NextOrClosed.</comment>
+  </data>
+  <data name="Flow007Title" xml:space="preserve">
+    <value>Await a FlowTask instead of calling its GetAwaiter()</value>
+  </data>
+  <data name="Flow007Description" xml:space="preserve">
+    <value>A FlowTask is lazy: it starts when it is awaited, or when a combinator, Flow.Spawn or FlowWorld.Run starts it. The await begins in GetAwaiter(), and that is where the task starts, so a GetAwaiter() call written in code starts the task too, as a child of the current scope, even if the awaiter is never awaited (outside a flow, the call throws). The awaiter's IsCompleted keeps the state of that call and does not change afterwards. Await the task; to start it without waiting for it, use Flow.Spawn or FlowWorld.Run. A GetAwaiter method of an awaitable type of your own that returns the awaiter of a FlowTask is not reported: the await of your type calls it. An awaiter used by hand can be read only when IsCompleted is true: registering a continuation with OnCompleted is a misuse, as a suspended await in a method that is not a FlowTask method is (FLOW005). Code that reads a completed awaiter by hand on purpose suppresses this warning with #pragma.</value>
+  </data>
+  <data name="Flow007Message" xml:space="preserve">
+    <value>'{0}.GetAwaiter()' starts the task here, because a FlowTask starts in GetAwaiter when it is awaited; await it instead, or start it with Flow.Spawn or FlowWorld.Run</value>
+    <comment>Message of Descriptors.DirectGetAwaiter. {0}: the receiver expression ('this' when there is none).</comment>
+  </data>
+  <data name="Flow008Title" xml:space="preserve">
+    <value>Do not drop the handle of Flow.Spawn silently</value>
+  </data>
+  <data name="Flow008Description" xml:space="preserve">
+    <value>Flow.Spawn starts a child of the current scope, which does not wait for it: the child is stopped when the scope ends, also when the scope's code returns normally. Written as a statement, the way UniTask's Forget() is, a spawn reads as work that runs on (music, particles, a retry loop), but when the flow that started it is short-lived, the child stops silently as soon as that flow returns. Write '_ = Flow.Spawn(task);' where the child may end with this scope (a loop that belongs to a screen), so that the choice is visible, and start work that must outlive this flow with FlowWorld.Run (FlowWorld.Current.Run in a flow): that flow is independent of this one, its exception goes to OnUnhandledException, and it runs on the World's default clock unless one is passed. The same is reported for the body of an expression lambda written in a FlowTask method ('items.ForEach(x =&gt; Flow.Spawn(Do(x)))') and for a local that holds the handle and is never read ('var h = Flow.Spawn(task);'). Not reported: a handle that is discarded with '_ =' (or 'var _ ='), stored in a field or in a local that is read, used, passed on or returned, and the body of an expression lambda written outside a FlowTask method, where a spawn that runs now throws (the Assert.Throws idiom). A spawn in an event handler is reported by FLOW009 instead.</value>
+  </data>
+  <data name="Flow008Message" xml:space="preserve">
+    <value>Flow.Spawn starts a child that stops when the current scope ends; start it with world.Run (FlowWorld.Current.Run in a flow) if it must outlive this flow, or write '_ = Flow.Spawn(...)' if it may end with this scope</value>
+    <comment>Message of Descriptors.SpawnHandleDropped.</comment>
+  </data>
+  <data name="Flow009Title" xml:space="preserve">
+    <value>Do not call Flow.Spawn in an event handler</value>
+  </data>
+  <data name="Flow009Description" xml:space="preserve">
+    <value>An event handler written in a FlowTask method runs later, when the event fires, and Flow.Spawn there starts a child of the scope current at that moment: outside a flow it throws FlowMisuseException, and in the flow that raised the event it starts a child of that flow, which ends with it. Start such work with Run on a FlowWorld taken while the flow runs ('var world = FlowWorld.Current;' before subscribing; in the handler FlowWorld.Current is null outside a flow, or the World of another flow), or turn the event into a signal with FlowBridge.FromCallback and await it in the flow. Run works only on the World's thread: for an event that may fire on another thread, write 'world.Post(() =&gt; world.Run(...))' in the handler; a signal made with FlowBridge.FromCallback in the flow passes emits from other threads to the World's thread itself.</value>
+  </data>
+  <data name="Flow009Message" xml:space="preserve">
+    <value>Flow.Spawn in this event handler runs when the event fires, where there may be no flow (FlowMisuseException) or a different one that ends with it; start the work with Run on a FlowWorld taken in this flow (not FlowWorld.Current, which is null outside a flow), or turn the event into a signal with FlowBridge.FromCallback and await it in this flow</value>
+    <comment>Message of Descriptors.SpawnInEventHandler.</comment>
+  </data>
+  <data name="CodeFixRethrowCancellation" xml:space="preserve">
+    <value>End the catch clause with 'throw;'</value>
+    <comment>FLOW001 (CatchCancellationCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixRemoveCancellationCatch" xml:space="preserve">
+    <value>Remove the catch clause (the cancellation passes on)</value>
+    <comment>FLOW001 (CatchCancellationCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixExcludeFlowCancellation" xml:space="preserve">
+    <value>Add 'when ({0} is not FlowCanceledException)' (the cancellation passes on)</value>
+    <comment>FLOW001 (CatchCancellationCodeFixProvider). {0}: the catch variable.</comment>
+  </data>
+  <data name="CodeFixBridgeWithFromTask" xml:space="preserve">
+    <value>Bridge with FlowBridge.FromTask (the scope's cancellation reaches the task)</value>
+    <comment>FLOW002 (BridgeAwaitCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixBridgeWithAsFlow" xml:space="preserve">
+    <value>Bridge the running task with .AsFlow() (cancellation does not reach it)</value>
+    <comment>FLOW002 (BridgeAwaitCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixAwait" xml:space="preserve">
+    <value>Await the FlowTask</value>
+    <comment>FLOW003 (StartFlowTaskCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixSpawn" xml:space="preserve">
+    <value>Start it as a child with Flow.Spawn (stops when this scope ends)</value>
+    <comment>FLOW003 (StartFlowTaskCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixRun" xml:space="preserve">
+    <value>Run it independently with FlowWorld.Current.Run</value>
+    <comment>FLOW003 (StartFlowTaskCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixUsingVar" xml:space="preserve">
+    <value>Declare it with 'using var {0}'</value>
+    <comment>FLOW004 (UsingLifetimeHandleCodeFixProvider). {0}: the new local variable.</comment>
+  </data>
+  <data name="CodeFixUsingDeclaration" xml:space="preserve">
+    <value>Add 'using' to the declaration of '{0}'</value>
+    <comment>FLOW004 (UsingLifetimeHandleCodeFixProvider). {0}: the local variable.</comment>
+  </data>
+  <data name="CodeFixSubscribeBeforeLoop" xml:space="preserve">
+    <value>Subscribe before the loop (BufferPolicy.Latest)</value>
+    <comment>FLOW006 (SubscribeBeforeLoopCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixDiscardSpawnHandle" xml:space="preserve">
+    <value>Discard the handle with '_ =' (the child stops when this scope ends)</value>
+    <comment>FLOW008 (SpawnHandleCodeFixProvider).</comment>
+  </data>
+  <data name="CodeFixRunInsteadOfSpawn" xml:space="preserve">
+    <value>Run it independently with FlowWorld.Current.Run (it does not stop when this flow ends)</value>
+    <comment>FLOW008 (SpawnHandleCodeFixProvider).</comment>
+  </data>
+  <data name="Flow010Title" xml:space="preserve">
+    <value>Mark the awaits of a finally block with Flow.NonCancelable</value>
+  </data>
+  <data name="Flow010Description" xml:space="preserve">
+    <value>Once the cancellation of a scope has reached its code, the awaits of its catch and finally blocks run to their end. A finally block entered before that (by a return, the end of the try block or an exception), and a catch clause entered by an exception, are not cleanup yet: a cancel that comes while such an await waits (a scene change, a Race that another branch won) throws FlowCanceledException there, which skips the rest of the block (the Destroy or the save after it) and replaces the exception the block was carrying, which is lost. Await with Flow.NonCancelable(task) to let the task and the rest of the block run: the cancellation then reaches the scope at its next await without the mark. Mark only cleanup that ends by itself (an animation, a save): a marked wait for input or for another flow cannot be canceled, and holds the flow until it ends (a canceled scope still waiting in its cleanup after 10 seconds is reported as FlowWarningKind.LongCleanup). World.Dispose still ends a marked await. Reported in FlowTask methods: an await of a FlowTask awaitable in a finally block, or in a catch clause that does not name FlowCanceledException or OperationCanceledException and throws. Not reported: an await marked with Flow.NonCancelable or of a local initialized with it, and one in a catch that handles its exception or that takes the cancellation.</value>
+  </data>
+  <data name="Flow010Message" xml:space="preserve">
+    <value>A cancel that comes while this await in a finally block (or a catch that passes its exception on) waits skips the rest of the block and replaces the exception it carries; await Flow.NonCancelable(...) to let cleanup that ends by itself finish</value>
+    <comment>Message of Descriptors.CleanupAwaitNotProtected.</comment>
+  </data>
+  <data name="CodeFixNonCancelable" xml:space="preserve">
+    <value>Await it with Flow.NonCancelable (only for cleanup that ends by itself)</value>
+    <comment>FLOW010 (NonCancelableCodeFixProvider).</comment>
+  </data>
+</root>

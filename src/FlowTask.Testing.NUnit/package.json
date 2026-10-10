@@ -1,0 +1,22 @@
+{
+  "name": "com.katout.flowtask.testing.nunit",
+  "version": "0.1.0-preview.1",
+  "displayName": "FlowTask Testing for NUnit",
+  "description": "NUnit adapter for FlowTask.Testing: [FailOnUnhandledFlowException] and FlowNUnit.CreateWorld() fail the test on an unhandled flow exception. Reference the FlowTask.Testing.NUnit assembly from a test assembly. List the package in the project's \"testables\" (Packages/manifest.json), with com.katout.flowtask.testing; otherwise Unity does not compile it (see https://katout.github.io/FlowTask/en/tools/testing/).",
+  "unity": "2023.1",
+  "license": "MIT",
+  "documentationUrl": "https://katout.github.io/FlowTask/",
+  "changelogUrl": "https://github.com/katout/FlowTask/blob/main/CHANGELOG.md",
+  "author": {
+    "name": "katout"
+  },
+  "keywords": [
+    "async",
+    "testing",
+    "nunit"
+  ],
+  "dependencies": {
+    "com.katout.flowtask.testing": "0.1.0-preview.1",
+    "com.unity.test-framework": "1.1.33"
+  }
+}

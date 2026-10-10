@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation / ドキュメント
+    url: https://katout.github.io/FlowTask/
+    about: Guides, engine integrations and the analyzer rules (日本語版は https://katout.github.io/FlowTask/ja/). / ガイド、エンジンの統合、アナライザのルール。
+  - name: Security vulnerability / 脆弱性
+    url: https://github.com/katout/FlowTask/security/advisories/new
+    about: Report vulnerabilities privately. / 脆弱性は非公開で報告してください。

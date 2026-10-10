@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Roslyn analyzers for FlowTask (the FLOW rules of docs/en/tools/analyzers.md).
+    - netstandard2.0 + Microsoft.CodeAnalysis.CSharp 3.8.0 so the DLL loads in every host from Roslyn 3.8 on (Unity 2021.3,
+      the .NET 5 SDK). The UPM packages need Unity 2023.1 (Roslyn 4.x); the NuGet
+      package carries the same DLL.
+    - Analyzer only: no Workspaces reference. Unity loads this DLL directly; code fixes live in FlowTask.Analyzers.CodeFixes.
+    - Shipped inside the core's NuGet package, FlowTask (analyzers/dotnet/cs), not as a package of its own.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Katout.FlowTask.Analyzers</RootNamespace>
+    <AssemblyName>FlowTask.Analyzers</AssemblyName>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>false</IsPackable>
+    <!-- [NeutralResourcesLanguage("en")]: an English host (Unity passes /preferreduilang:en-US) uses the strings in this DLL. -->
+    <NeutralLanguage>en</NeutralLanguage>
+  </PropertyGroup>
+  <!--
+    Reproducible bytes: the Release DLL is committed for Unity (target below), and CI fails when a rebuild changes it.
+    So no commit hash in the informational version, and no PDB in Release: a separate one records the build path in the
+    DLL, an embedded one differs between SDK patch versions.
+  -->
+  <PropertyGroup>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+  <!--
+    Titles, messages, descriptions and code fix titles: English in Resources.resx, built into this DLL; Japanese in
+    Resources.ja.resx, built into the satellite assembly ja/FlowTask.Analyzers.resources.dll. The internal Resources
+    class is generated at build time; the code fixes use it too.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Update="Resources.resx" StronglyTypedLanguage="C#" StronglyTypedClassName="Resources"
+                      StronglyTypedNamespace="$(RootNamespace)" StronglyTypedFileName="$(IntermediateOutputPath)Resources.g.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="FlowTask.Analyzers.CodeFixes" />
+    <InternalsVisibleTo Include="FlowTask.Analyzers.Tests" />
+  </ItemGroup>
+  <!--
+    Unity cannot build a project, so the UPM package com.katout.flowtask carries this DLL, committed in
+    src/FlowTask/Analyzers (its .meta marks it as a Roslyn analyzer). A Release build on Windows copies the DLL
+    there when its bytes differ: commit it when it changes. Only the analyzer: the code fixes need Roslyn's Workspaces,
+    which Unity does not load, and Unity compiles with the en-US culture, so it never uses the Japanese satellite.
+  -->
+  <Target Name="_FlowTaskCopyAnalyzerForUnity" AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Release' and '$(OS)' == 'Windows_NT'">
+    <PropertyGroup>
+      <_FlowTaskUnityAnalyzer>$(MSBuildThisFileDirectory)..\FlowTask\Analyzers\$(TargetFileName)</_FlowTaskUnityAnalyzer>
+    </PropertyGroup>
+    <GetFileHash Files="$(TargetPath)">
+      <Output TaskParameter="Hash" PropertyName="_FlowTaskBuiltAnalyzerHash" />
+    </GetFileHash>
+    <GetFileHash Files="$(_FlowTaskUnityAnalyzer)" Condition="Exists('$(_FlowTaskUnityAnalyzer)')">
+      <Output TaskParameter="Hash" PropertyName="_FlowTaskUnityAnalyzerHash" />
+    </GetFileHash>
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(_FlowTaskUnityAnalyzer)" Retries="3"
+          Condition="'$(_FlowTaskBuiltAnalyzerHash)' != '$(_FlowTaskUnityAnalyzerHash)'" />
+    <Message Importance="high" Condition="'$(_FlowTaskBuiltAnalyzerHash)' != '$(_FlowTaskUnityAnalyzerHash)'"
+             Text="Updated src/FlowTask/Analyzers/$(TargetFileName) for Unity (SHA-256 $(_FlowTaskBuiltAnalyzerHash)): commit it." />
+  </Target>
+</Project>

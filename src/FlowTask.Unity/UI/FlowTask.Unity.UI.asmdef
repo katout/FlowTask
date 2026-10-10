@@ -1,0 +1,26 @@
+{
+    "name": "FlowTask.Unity.UI",
+    "rootNamespace": "Katout.FlowTask.Unity",
+    "references": [
+        "FlowTask",
+        "FlowTask.Unity",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "FLOWTASK_UGUI"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.ugui",
+            "expression": "1.0.0",
+            "define": "FLOWTASK_UGUI"
+        }
+    ],
+    "noEngineReferences": false
+}

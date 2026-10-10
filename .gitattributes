@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.cs text eol=lf
+*.meta text eol=lf linguist-generated=true
+*.dll binary
+*.png binary
+# Instructions for AI agents working on FlowTask stay out of `git archive` and GitHub's source zips.
+/AGENTS.md export-ignore
+/.claude export-ignore

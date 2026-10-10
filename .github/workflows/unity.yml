@@ -1,0 +1,126 @@
+# The core test suite and the Unity integration tests in the Unity Editor (EditMode, PlayMode), on GitHub's Linux
+# runners with game-ci's Unity images. The players (Windows IL2CPP and Mono, the Android IL2CPP build) cannot run
+# here and stay with the local tools/unity/run-tests.ps1.
+#
+# Needs a Unity license in the repository's Actions secrets (docs/maintainers/engine-tests.md): UNITY_LICENSE (Personal: the contents
+# of Unity_lic.ulf) or UNITY_SERIAL (Plus / Pro), and UNITY_EMAIL, UNITY_PASSWORD. Without them, as in pull requests
+# from forks and from Dependabot, which get no Actions secrets, the job leaves a notice and skips the tests instead of
+# failing; so the branch rules do not require it.
+# Heavy, so it runs only when something Unity compiles or runs has changed: in pull requests and in pushes to main (a
+# push to a branch with a pull request would otherwise run it twice). release.yml calls it for every release, and it can
+# be started by hand from the Actions tab.
+name: unity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - src/FlowTask/**
+      - src/FlowTask.Unity/**
+      - src/FlowTask.Testing*/**
+      - src/FlowTask.UniTask/**
+      - tests/FlowTask.Core.Tests/**
+      - tests/unity/**
+      - tools/unity/**
+      - .github/workflows/unity.yml
+  pull_request:
+    paths:
+      - src/FlowTask/**
+      - src/FlowTask.Unity/**
+      - src/FlowTask.Testing*/**
+      - src/FlowTask.UniTask/**
+      - tests/FlowTask.Core.Tests/**
+      - tests/unity/**
+      - tools/unity/**
+      - .github/workflows/unity.yml
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A literal name for the same reason as in ci.yml (github.workflow is the caller's name in a called workflow). As in
+  # ci.yml: a pull request's newer push replaces its run; every push to main is checked to the end.
+  group: unity-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  editor:
+    name: Unity Editor (${{ matrix.testMode }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        testMode: [editmode, playmode]
+    steps:
+      # A job-level if cannot read secrets, so this step decides for the steps below.
+      - name: Unity license in the secrets?
+        id: license
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        run: |
+          if [ -n "$UNITY_LICENSE" ] || [ -n "$UNITY_SERIAL" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice title=Unity tests skipped::No UNITY_LICENSE or UNITY_SERIAL secret (docs/maintainers/engine-tests.md). Run tools/unity/run-tests.ps1 locally."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.license.outputs.present == 'true'
+        with:
+          persist-credentials: false
+      # The tools below are .NET file-based apps (dotnet <file>.cs); the SDK comes from global.json, as in ci.yml.
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: steps.license.outputs.present == 'true'
+        with:
+          global-json-file: global.json
+      # The copies of the core suite and of the package's samples are gitignored and made here, as in run-tests.ps1: the
+      # core suite unchanged, for EditMode and for PlayMode, and the samples with their .meta files, as the Package
+      # Manager's Import does (docs/maintainers/engine-tests.md).
+      - name: Copy the core suite and the samples into tests/unity and write the .meta files
+        if: steps.license.outputs.present == 'true'
+        run: |
+          for mode in EditMode PlayMode; do
+            mkdir -p "tests/unity/Assets/Tests/$mode/Synced"
+            cp tests/FlowTask.Core.Tests/*.cs "tests/unity/Assets/Tests/$mode/Synced/"
+          done
+          dotnet tools/unity/generate_meta.cs
+          mkdir -p tests/unity/Assets/Samples
+          cp -R "src/FlowTask.Unity/Samples~/Scenarios/." tests/unity/Assets/Samples/
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.license.outputs.present == 'true'
+        with:
+          path: tests/unity/Library
+          # The key covers what Unity imports, so a changed source saves a fresh Library; restore-keys start from the
+          # latest one. With a key of the settings only, the first Library would be reused and reimport more each time.
+          key: unity-library-${{ matrix.testMode }}-${{ hashFiles('tests/unity/Packages/**', 'tests/unity/ProjectSettings/**', 'tests/unity/Assets/**', 'src/FlowTask/**', 'src/FlowTask.Unity/**') }}
+          restore-keys: unity-library-${{ matrix.testMode }}-
+      # It receives the license secrets. v4.3.2 is the last release on the long-stable v4 architecture (v4.4.0 rewrote
+      # the action as a wrapper of game-ci/cli), so dependabot.yml leaves it alone. The Unity version comes from
+      # tests/unity/ProjectSettings/ProjectVersion.txt. The workspace is mounted whole, so the file:../../../src/...
+      # packages of tests/unity/Packages/manifest.json resolve.
+      - name: Run the tests in the Unity Editor
+        id: tests
+        if: steps.license.outputs.present == 'true'
+        uses: game-ci/unity-test-runner@fa6ced25861c16ef56187828c43f76d00df43a23 # v4.3.2
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: tests/unity
+          testMode: ${{ matrix.testMode }}
+          # As in run-tests.ps1: the Editor otherwise compiles in Debug, where async state machines are classes and the
+          # allocation tests would measure the compiler instead of FlowTask.
+          customParameters: -releaseCodeOptimization
+          artifactsPath: unity-test-results/${{ matrix.testMode }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.license.outputs.present == 'true'
+        with:
+          name: unity-${{ matrix.testMode }}
+          path: unity-test-results/${{ matrix.testMode }}
+          if-no-files-found: ignore

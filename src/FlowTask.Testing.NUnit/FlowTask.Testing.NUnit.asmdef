@@ -1,0 +1,21 @@
+{
+    "name": "FlowTask.Testing.NUnit",
+    "rootNamespace": "Katout.FlowTask.Testing.NUnit",
+    "references": [
+        "FlowTask",
+        "FlowTask.Testing"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

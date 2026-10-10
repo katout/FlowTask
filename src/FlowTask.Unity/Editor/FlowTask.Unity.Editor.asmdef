@@ -1,0 +1,19 @@
+{
+    "name": "FlowTask.Unity.Editor",
+    "rootNamespace": "Katout.FlowTask.Unity.Editor",
+    "references": [
+        "FlowTask",
+        "FlowTask.Unity"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

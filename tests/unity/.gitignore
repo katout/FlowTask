@@ -1,0 +1,46 @@
+# Unity-generated folders and files: never commit them.
+/Library/
+/Temp/
+/Logs/
+/obj/
+/Build*/
+/Builds/
+/UserSettings/
+/MemoryCaptures/
+/TestPlayers/
+/TestResults/
+*.csproj
+*.sln
+*.slnx
+*.pidb
+*.booproj
+*.svd
+*.userprefs
+*.apk
+*.aab
+.vs/
+.vscode/
+.idea/
+.utmp/
+
+# Resolved by the Package Manager on every open.
+/Packages/packages-lock.json
+
+# Generated on first open; the verification scripts set what they need explicitly (see tools/unity/run-tests.ps1).
+/ProjectSettings/*
+!/ProjectSettings/ProjectVersion.txt
+
+# Copies of the core test suite, made by tools/unity/run-tests.ps1 and unity.yml (single source of truth: tests/).
+/Assets/Tests/EditMode/Synced/
+/Assets/Tests/EditMode/Synced.meta
+/Assets/Tests/PlayMode/Synced/
+/Assets/Tests/PlayMode/Synced.meta
+
+# Copy of the package's samples (src/FlowTask.Unity/Samples~/Scenarios), made by the same scripts, as the Package
+# Manager's Import does in a game. Assets/Tests/Samples tests them.
+/Assets/Samples/
+/Assets/Samples.meta
+
+# Temporary scene the Test Framework creates during PlayMode / player runs.
+/Assets/InitTestScene*.unity
+/Assets/InitTestScene*.unity.meta

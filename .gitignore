@@ -1,0 +1,11 @@
+artifacts/
+bin/
+obj/
+*.user
+.vs/
+.idea/
+TestResults/
+BenchmarkDotNet.Artifacts/
+*.log
+.claude/worktrees/
+.claude/settings.local.json

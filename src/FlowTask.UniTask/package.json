@@ -1,0 +1,21 @@
+{
+  "name": "com.katout.flowtask.unitask",
+  "version": "0.1.0-preview.1",
+  "displayName": "FlowTask UniTask bridge",
+  "description": "Bridges Cysharp UniTask and FlowTask in both directions: FromUniTask / AsFlow with scope cancellation through a CancellationToken, ToUniTask for a running flow. Needs com.cysharp.unitask in the project (install it yourself: git URL or OpenUPM); without it the FlowTask.UniTask assembly is not compiled. UniTask imported as a .unitypackage is not a UPM package: add FLOWTASK_UNITASK to Scripting Define Symbols.",
+  "unity": "2023.1",
+  "license": "MIT",
+  "documentationUrl": "https://katout.github.io/FlowTask/",
+  "changelogUrl": "https://github.com/katout/FlowTask/blob/main/CHANGELOG.md",
+  "author": {
+    "name": "katout"
+  },
+  "keywords": [
+    "async",
+    "unitask",
+    "bridge"
+  ],
+  "dependencies": {
+    "com.katout.flowtask": "0.1.0-preview.1"
+  }
+}

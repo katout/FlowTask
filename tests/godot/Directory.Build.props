@@ -1,0 +1,13 @@
+<Project>
+  <!--
+    Stops MSBuild from importing the repository's Directory.Build.props (artifacts\ output paths): Godot expects this
+    project's build output under .godot\mono\temp\. The referenced FlowTask projects still use the repository settings.
+    The build settings of the repository's Directory.Build.props (warnings as errors, analysis level, NuGet audit) are
+    repeated here: change them together. Package versions still come from the repository's Directory.Packages.props.
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>10.0</AnalysisLevel>
+    <NuGetAuditMode>all</NuGetAuditMode>
+  </PropertyGroup>
+</Project>

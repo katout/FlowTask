@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Code fixes for the FlowTask analyzers. Needs Workspaces, so it is kept out of FlowTask.Analyzers (which Unity loads
+    directly). IDEs (VS, Rider, VS Code) load both DLLs from the NuGet package's analyzers/dotnet/cs folder.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Katout.FlowTask.Analyzers.CodeFixes</RootNamespace>
+    <AssemblyName>FlowTask.Analyzers.CodeFixes</AssemblyName>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <!-- Same reproducible bytes as FlowTask.Analyzers (see its csproj): no commit hash, no PDB in Release. -->
+  <PropertyGroup>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+    <!-- Workspaces 3.8 (pinned for Unity 2021.3's Roslyn) pulls the vulnerable System.Private.Uri 4.3.0 into a
+         RID-specific restore, such as a NativeAOT publish that references FlowTask; this lifts it to the fixed version. -->
+    <PackageReference Include="System.Private.Uri" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FlowTask.Analyzers\FlowTask.Analyzers.csproj" />
+  </ItemGroup>
+</Project>

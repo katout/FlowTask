@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Per-test timeout for `dotnet test` (tests/Directory.Build.props points every test project here, so it needs no
+  arguments). A regression that hangs (an endless loop in the scheduler, a continuation that never runs) must fail the
+  run with the name of the test instead of stopping it until someone notices.
+  - blame collector: a single test that runs longer than 2 minutes aborts the run (no dump). The slowest test takes about
+    a second.
+  - blame logger: prints the test that was running when the run was aborted. Without it the name is not shown.
+  - TestSessionTimeout: 10 minutes for the whole run of one test project.
+  A hang shows as exit code 1 and "The active test run was aborted" (the summary line may still say the executed tests
+  passed), so check the exit code. Test code cannot do this itself: NUnit's [Timeout] relies on Thread.Abort (obsolete on
+  .NET, CS0618) and [CancelAfter] is cooperative, so neither stops a loop inside the library.
+-->
+<RunSettings>
+  <RunConfiguration>
+    <TestSessionTimeout>600000</TestSessionTimeout>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="blame" enabled="True">
+        <Configuration>
+          <CollectDumpOnTestSessionHang TestTimeout="2m" HangDumpType="None" />
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger friendlyName="blame" enabled="True" />
+    </Loggers>
+  </LoggerRunSettings>
+</RunSettings>

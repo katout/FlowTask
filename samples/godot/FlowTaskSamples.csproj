@@ -1,0 +1,23 @@
+<Project Sdk="Godot.NET.Sdk/4.4.1">
+  <!--
+    The FlowTask samples for Godot (docs/en/godot/samples.md). This project builds FlowTask from the repository's sources;
+    a game adds the FlowTask.Godot NuGet package instead (docs/en/getting-started/installation.md).
+  -->
+  <PropertyGroup>
+    <!-- A Godot 4.4 game project targets net8.0 and uses the netstandard2.1 build of FlowTask. -->
+    <TargetFramework>net8.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Katout.FlowTask.Samples</RootNamespace>
+    <!-- Godot.NET.Sdk's implicit references carry their own versions (NU1008 under central package management). -->
+    <DisableImplicitGodotSharpReferences>true</DisableImplicitGodotSharpReferences>
+    <DisableImplicitGodotGeneratorReferences>true</DisableImplicitGodotGeneratorReferences>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FlowTask\FlowTask.csproj" />
+    <ProjectReference Include="..\..\src\FlowTask.Godot\FlowTask.Godot.csproj" />
+    <PackageReference Include="GodotSharp" />
+    <PackageReference Include="GodotSharpEditor" Condition="'$(Configuration)'=='Debug'" />
+    <PackageReference Include="Godot.SourceGenerators" />
+  </ItemGroup>
+</Project>

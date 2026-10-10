@@ -1,0 +1,11 @@
+<Project>
+  <!--
+    The tools under tools/ are .NET file-based apps (dotnet tools/gen_combinators.cs), built with this repository's
+    settings. File-based apps default to PublishAot=true, which makes every restore fetch the ILCompiler and the runtime
+    packs (about 450 MB); the tools are only run with dotnet, never published.
+  -->
+  <PropertyGroup>
+    <PublishAot>false</PublishAot>
+  </PropertyGroup>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+</Project>

@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Core: pure C#, netstandard2.1 (Unity 2023.1+, and .NET projects older than net10.0 such as Godot 4.4 games on
+    net8.0) and net10.0 (.NET, NativeAOT). C# 10, no dependencies. In Unity, csc.rsp next to the .asmdef sets the same
+    language version (CONTRIBUTING.md).
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
+    <LangVersion>10.0</LangVersion>
+    <RootNamespace>Katout.FlowTask</RootNamespace>
+    <AssemblyName>FlowTask</AssemblyName>
+    <PackageId>FlowTask</PackageId>
+    <Description>Structured-concurrency async game flow runtime: scopes, unwinding cancellation, clocks, signals.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)'=='net10.0'">
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
+
+  <!--
+    The FLOW analyzers (docs/en/tools/analyzers.md) check this project and ship inside its package under analyzers/dotnet/cs,
+    with their Japanese satellite assemblies under analyzers/dotnet/cs/ja. They are not referenced as assemblies and do
+    not become package dependencies.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\FlowTask.Analyzers\FlowTask.Analyzers.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" PrivateAssets="all" />
+    <ProjectReference Include="..\FlowTask.Analyzers.CodeFixes\FlowTask.Analyzers.CodeFixes.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+  <!-- Runs once per pack (outer build), not per target framework, so each DLL is added exactly once. -->
+  <Target Name="_FlowTaskPackAnalyzers" BeforeTargets="_GetPackageFiles">
+    <!-- Ask the analyzer projects for their output path (they are single-TFM netstandard2.0 projects). -->
+    <MSBuild Projects="@(ProjectReference)" Targets="GetTargetPath" Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
+             Condition="'%(ProjectReference.ReferenceOutputAssembly)' == 'false'">
+      <Output TaskParameter="TargetOutputs" ItemName="_FlowTaskAnalyzerAssembly" />
+    </MSBuild>
+    <!-- Their satellite resource assemblies, each with its Culture metadata (ja -> analyzers/dotnet/cs/ja/). -->
+    <MSBuild Projects="@(ProjectReference)" Targets="SatelliteDllsProjectOutputGroup" Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained"
+             Condition="'%(ProjectReference.ReferenceOutputAssembly)' == 'false'">
+      <Output TaskParameter="TargetOutputs" ItemName="_FlowTaskAnalyzerSatellite" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="@(_FlowTaskAnalyzerAssembly)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+      <None Include="@(_FlowTaskAnalyzerSatellite)" Pack="true" PackagePath="analyzers/dotnet/cs/%(_FlowTaskAnalyzerSatellite.Culture)" Visible="false" />
+    </ItemGroup>
+  </Target>
+</Project>
