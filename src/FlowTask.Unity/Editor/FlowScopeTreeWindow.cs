@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Katout.FlowTask.Diagnostics;
@@ -14,8 +15,10 @@ namespace Katout.FlowTask.Unity.Editor
     /// <summary>
     /// Live view of a World's scope tree (default: <see cref="FlowTaskUnity.World"/>). Shows every node with
     /// its kind, clock, what it waits for and for how long, and scopes that are canceling. Refreshes during Play Mode.
-    /// Double-clicking the scope of an async FlowTask method (or its context menu) opens the method in its script
-    /// (<see cref="FlowScopeInfo.DeclaringType"/>, <see cref="FlowScopeInfo.MethodName"/>).
+    /// Each node shows where what it waits for was created (<see cref="FlowScopeInfo.WaitingFile"/>,
+    /// <see cref="FlowScopeInfo.WaitingLine"/>). Double-clicking a node opens that line; for a scope that waits on the call
+    /// of another FlowTask method (no place), it opens the scope's method in its script
+    /// (<see cref="FlowScopeInfo.DeclaringType"/>, <see cref="FlowScopeInfo.MethodName"/>). The context menu offers both.
     /// </summary>
     public sealed class FlowScopeTreeWindow : EditorWindow
     {
@@ -203,6 +206,8 @@ namespace Katout.FlowTask.Unity.Editor
             if (waiting != null)
             {
                 text += "  waiting: " + waiting;
+                var site = SiteLabel(info.WaitingFile, info.WaitingLine);
+                if (site != null) text += " <color=#888888>at " + site + "</color>";
                 // Scopes, and waits and combinators run at the root with no scope under them (FlowScopeInfo.WaitingSeconds).
                 var seconds = info.WaitingSeconds;
                 if (info.Kind == FlowScopeKind.Scope || seconds > 0) text += " for " + seconds.ToString("0.0", CultureInfo.InvariantCulture) + "s";
@@ -218,29 +223,85 @@ namespace Katout.FlowTask.Unity.Editor
 
         // ------------------------------------------------------------------ opening the source
 
-        static string SourceTooltip(FlowScopeInfo info) =>
-            info.DeclaringType == null ? null : "Double-click to open " + SourceLabel(info.DeclaringType, info.MethodName);
+        static string SourceTooltip(FlowScopeInfo info)
+        {
+            var site = SiteLabel(info.WaitingFile, info.WaitingLine);
+            if (site != null) return "Double-click to open " + site;
+            return info.DeclaringType == null ? null : "Double-click to open " + SourceLabel(info.DeclaringType, info.MethodName);
+        }
 
         void HandleSourceClick(Rect rect, FlowScopeInfo info)
         {
             var e = Event.current;
             if (!rect.Contains(e.mousePosition)) return;
+            // The node may be reused once its flow ends: the menu keeps the values, not the node.
             var type = info.DeclaringType;
-            if (type == null) return;
-            // The node may be reused once its flow ends: the menu keeps the type and the name, not the node.
             var method = info.MethodName;
+            var file = info.WaitingFile;
+            var line = info.WaitingLine;
+            if (type == null && file == null) return;
             if (e.type == EventType.MouseDown && e.button == 0 && e.clickCount == 2)
             {
-                OpenSource(type, method);
+                if (file != null) OpenWaitSite(file, line);
+                else OpenSource(type, method);
                 e.Use();
             }
             else if (e.type == EventType.ContextClick)
             {
                 var menu = new GenericMenu();
-                menu.AddItem(new GUIContent("Open " + SourceLabel(type, method)), false, () => OpenSource(type, method));
+                if (file != null) menu.AddItem(new GUIContent("Open wait at " + SiteLabel(file, line)), false, () => OpenWaitSite(file, line));
+                if (type != null) menu.AddItem(new GUIContent("Open " + SourceLabel(type, method)), false, () => OpenSource(type, method));
                 menu.ShowAsContext();
                 e.Use();
             }
+        }
+
+        /// <summary>"File.cs:42": the file name of a wait's place and its line, or null when the place is unknown.</summary>
+        static string SiteLabel(string file, int line)
+        {
+            if (file == null) return null;
+            var name = file[(file.LastIndexOfAny(s_separators) + 1)..];
+            return line > 0 ? name + ":" + line.ToString(CultureInfo.InvariantCulture) : name;
+        }
+
+        static readonly char[] s_separators = { '/', '\\' };
+
+        void OpenWaitSite(string file, int line)
+        {
+            var script = FindWaitScript(file);
+            if (script != null)
+            {
+                AssetDatabase.OpenAsset(script, line > 0 ? line : -1);
+                return;
+            }
+
+            // A file the asset database does not know (outside the project and its packages): the external editor opens it.
+            if (!File.Exists(file) || !UnityEditorInternal.InternalEditorUtility.OpenFileAtLineExternal(file, line > 0 ? line : -1))
+                ShowNotification(new GUIContent("No script found at " + file));
+        }
+
+        /// <summary>
+        /// The script at <paramref name="file"/>, a path as <c>[CallerFilePath]</c> gives it: inside the project
+        /// ("Assets/..."), or inside a package, whose files the asset database knows by "Packages/&lt;name&gt;/...". Null
+        /// when it knows none there.
+        /// </summary>
+        internal static MonoScript FindWaitScript(string file)
+        {
+            if (string.IsNullOrEmpty(file)) return null;
+            var path = file.Replace('\\', '/');
+            var project = Path.GetDirectoryName(Application.dataPath)?.Replace('\\', '/');
+            if (project != null && path.StartsWith(project + "/", StringComparison.OrdinalIgnoreCase)) path = path[(project.Length + 1)..];
+            var script = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
+            if (script != null) return script;
+            foreach (var package in UnityEditor.PackageManager.PackageInfo.GetAllRegisteredPackages())
+            {
+                var root = package.resolvedPath?.Replace('\\', '/');
+                if (string.IsNullOrEmpty(root) || !path.StartsWith(root + "/", StringComparison.OrdinalIgnoreCase)) continue;
+                script = AssetDatabase.LoadAssetAtPath<MonoScript>(package.assetPath + path[root.Length..]);
+                if (script != null) return script;
+            }
+
+            return null;
         }
 
         void OpenSource(Type type, string method)

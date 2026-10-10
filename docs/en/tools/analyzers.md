@@ -322,7 +322,7 @@ There is no code fix.
 
 ### What it detects
 
-`await` on `Next()` / `NextOrClosed()` of a `Signal<T>` or `EventSignal<T>` inside a loop in a FlowTask method (including as an argument of `FlowTask.Race(...)`, and `FlowProperty<T>.Changed.Next()`).
+`await` on `Next()` / `NextOrClosed()` of a `Signal<T>` or `EventSignal<T>` inside a loop in a FlowTask method (including as an argument of `FlowTask.Race(...)`, `FlowProperty<T>.Changed.Next()`, and a `Next(file, line)` that passes the caller's place on).
 
 `Next()` on a `Subscription<T>`, and receivers that can change on each iteration (`signals[i].Next()`), aren't reported. It doesn't stop the build; it appears as a suggestion in the IDE.
 

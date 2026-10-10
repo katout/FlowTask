@@ -184,9 +184,9 @@ FlowTask and UniTask run on the same PlayerLoop. The conversion APIs and a migra
 
 Open it with `Window > FlowTask > Scope Tree`. During Play Mode, it shows the scope tree of the default World and of any World registered with `FlowWorldRegistry.Register(world)`, refreshing every 0.25 seconds.
 
-- It shows each node's kind (scope, combinator, wait), its Clock, what it is waiting on and for how long (`waiting: Signal.Next for 2.3s`, for example), and scopes being canceled (in orange, with the reason). The top shows the number of live scopes and, for each Clock, its time, Pause state, and scale.
+- It shows each node's kind (scope, combinator, wait), its Clock, what it is waiting on, where that was created, and for how long (`waiting: Signal.Next at Enemy.cs:42 for 2.3s`, for example), and scopes being canceled (in orange, with the reason). The top shows the number of live scopes and, for each Clock, its time, Pause state, and scale.
 - The toolbar toggles auto-refresh, text view (the output of `FlowWorld.Dump()`), showing scopes only, a name filter, and copying the dump. If there are several Worlds, you can choose which one to show.
-- Double-clicking the scope row of a FlowTask method opens the script that declares the method.
+- Double-clicking a row opens the line where its wait was created (`FlowScopeInfo.WaitingFile`, `WaitingLine`). The scope row of a FlowTask method without a place (one that awaits the call of another FlowTask method) opens the script that declares the method. The context menu opens either.
 - If the game is stuck and won't move (a Pause you forgot to release), look at `Paused clocks:` at the top of the text view. For each paused Clock, it shows the pause count and the owners (for example, `Game: paused x2 by Main > PauseMenu, <outside any flow>`).
 - When there is no World (outside Play Mode, after recompiling while playing, and so on), it shows the reason.
 

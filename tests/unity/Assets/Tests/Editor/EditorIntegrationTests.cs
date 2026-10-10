@@ -88,6 +88,35 @@ public class EditorIntegrationTests
         }
     }
 
+    static MonoScript FindWaitScript(string file) =>
+        (MonoScript)typeof(FlowScopeTreeWindow).GetMethod("FindWaitScript", BindingFlags.NonPublic | BindingFlags.Static)!
+            .Invoke(null, new object[] { file });
+
+    static int Line([System.Runtime.CompilerServices.CallerLineNumber] int line = 0) => line;
+
+    [Test]
+    public void ScopeTreeWindowShowsAndOpensWhereAWaitWasCreated()
+    {
+        // The row shows the file name and line of the wait (FlowScopeInfo.WaitingFile, WaitingLine), and the path the
+        // compiler gave finds the script that a double-click opens at that line.
+        var world = new FlowWorld("SiteProbe");
+        try
+        {
+            var line = Line(); world.Run(FlowTask.WaitForSeconds(10));
+            var wait = world.Diagnostics.Root.Children.Single();
+            Assert.That(wait.WaitingLine, Is.EqualTo(line));
+            Assert.That(Describe(wait), Does.Contain("at EditorIntegrationTests.cs:" + line));
+            var script = FindWaitScript(wait.WaitingFile);
+            Assert.That(script, Is.Not.Null, wait.WaitingFile);
+            Assert.That(AssetDatabase.GetAssetPath(script), Does.EndWith("Tests/Editor/EditorIntegrationTests.cs"));
+            Assert.That(FindWaitScript("Z:/nowhere/Missing.cs"), Is.Null);
+        }
+        finally
+        {
+            world.Dispose();
+        }
+    }
+
     static async FlowTask WaitInTheEditorTests()
     {
         await FlowTask.Never();

@@ -163,9 +163,10 @@ public sealed class Signal<T> : IWaitSource<T>, IInboxItem
     /// Waits for the next emit (an edge): emits made while this scope does not wait are dropped. To keep them,
     /// <see cref="Subscribe"/> and wait on the subscription's Next.
     /// </summary>
-    public FlowTask<T> Next()
+    public FlowTask<T> Next([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         var n = NextNode<T>.Rent(this, 0);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask<T>(n, n.Token);
     }
 
@@ -173,9 +174,10 @@ public sealed class Signal<T> : IWaitSource<T>, IInboxItem
     /// Like <see cref="Next"/>, but completes with <c>(true, value)</c> for a value and with <c>(false, default)</c>
     /// instead of throwing <see cref="SignalClosedException"/> when the signal closes.
     /// </summary>
-    public FlowTask<(bool Received, T Value)> NextOrClosed()
+    public FlowTask<(bool Received, T Value)> NextOrClosed([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         var n = NextOrClosedNode<T>.Rent(this, 0);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask<(bool Received, T Value)>(n, n.Token);
     }
 

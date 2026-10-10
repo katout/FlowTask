@@ -65,6 +65,12 @@ public class Flow006Tests
                     for (var i = 0; i < 3; i++) await {|FLOW006:s.Next()|};
                 }
             }
+
+            // A helper that passes its caller's file and line on.
+            async FlowTask CallerPlacePassedOn(Signal<int> hits, string file, int line)
+            {
+                while (true) await {|FLOW006:hits.Next(file, line)|};
+            }
         }
         """,
         "'_damaged.Next()' is awaited in a loop: values emitted while the loop body runs are dropped, because Next() waits only for the next emit; if they must not be lost, subscribe once before the loop with '_damaged.Subscribe(BufferPolicy...)' and await the subscription's Next()",
@@ -74,7 +80,8 @@ public class Flow006Tests
         "'_damaged.Next()'",
         "'clicks.Next()'",
         "'_damaged.Next()'",
-        "'s.Next()'");
+        "'s.Next()'",
+        "'hits.Next()' is awaited in a loop");
 
     [Test]
     public Task FLOW006_SubscriptionNextIsNotReported() => AnalyzerHarness.VerifyAsync("""
@@ -235,6 +242,45 @@ public class Flow006Tests
                     var damage = await subscription.Next();
                     var more = await subscription.NextOrClosed();
                     await _healed.Next();
+                }
+            }
+        }
+        """,
+        new SubscribeBeforeLoopCodeFixProvider(),
+        DiagnosticIds.SignalNextInLoop,
+        SubscribeBeforeLoopCodeFixProvider.LatestEquivalenceKey);
+
+    [Test]
+    public Task FLOW006_FixKeepsThePlaceArguments() => CodeFixHarness.VerifyAsync(
+        """
+        using Katout.FlowTask;
+
+        class Enemy
+        {
+            readonly Signal<int> _damaged = new Signal<int>();
+
+            async FlowTask Run(bool alive, string file, int line)
+            {
+                while (alive)
+                {
+                    var damage = await _damaged.Next(file, line);
+                }
+            }
+        }
+        """,
+        """
+        using Katout.FlowTask;
+
+        class Enemy
+        {
+            readonly Signal<int> _damaged = new Signal<int>();
+
+            async FlowTask Run(bool alive, string file, int line)
+            {
+                using var subscription = _damaged.Subscribe(BufferPolicy.Latest);
+                while (alive)
+                {
+                    var damage = await subscription.Next(file, line);
                 }
             }
         }

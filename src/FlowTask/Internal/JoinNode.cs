@@ -7,10 +7,11 @@ internal sealed class JoinNode<T> : LeafNode<T>
 
     FlowHandle<T> _handle;
 
-    internal static FlowTask<T> Create(FlowHandle<T> handle)
+    internal static FlowTask<T> Create(FlowHandle<T> handle, string file, int line)
     {
         var n = s_pool.Rent() ?? new JoinNode<T>();
         n._handle = handle;
+        n.SetSite(file, line);
         n.InitUnstarted();
         return new FlowTask<T>(n, n.Token);
     }

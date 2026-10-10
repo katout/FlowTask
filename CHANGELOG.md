@@ -7,7 +7,7 @@ without a deprecation period; every break is listed here.
 
 ## [Unreleased]
 
-## [0.1.0-preview.1] - 2026-10-02
+## [0.1.0-preview.1] - 2026-10-10
 
 First public release.
 
@@ -16,6 +16,12 @@ First public release.
 - The core (`FlowTask` on NuGet, `com.katout.flowtask` on UPM): `FlowTask` and `FlowTask<T>`, scopes and cancellation
   by unwinding, `FlowWorld`, composition (`Race`, `WhenAll`, `Flow.Spawn`), Clocks, signals, bridges for Task and
   ValueTask, diagnostics, and the analyzers FLOW001–FLOW010 with code fixes.
+- Diagnostics show where each wait was created. `FlowScopeInfo.WaitingFile` and `WaitingLine` give the caller's file
+  and line of a wait or combinator, and a scope gives those of what it awaits directly (none for the call of a FlowTask
+  method). `FlowWorld.Dump()` shows the file name and line (`waiting: Race at InGame.cs:18`), and the Unity Scope Tree
+  window shows them and opens that line on a double-click. The APIs that create waits take the place through their
+  last optional parameters, `[CallerFilePath] string callerFilePath` and `[CallerLineNumber] int callerLineNumber`,
+  which a function that wraps them can pass on.
 - Engine integrations: `FlowTask.Unity` (Unity 2023.1 or later, Mono and IL2CPP) and `FlowTask.Godot` (Godot 4.4.1 or
   later, .NET edition).
 - Bridges: `FlowTask.UniTask` and `FlowTask.R3`.

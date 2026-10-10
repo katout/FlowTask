@@ -53,7 +53,9 @@ namespace Katout.FlowTask.Unity
             // the Race or unwinding costs no state machine and no FlowCanceledException. From outside flow code the World
             // is known only once a World starts the task.
             var world = FlowWorld.Current;
-            return world != null ? DestroyedFor(world).Wait().WithoutResult() : WaitForDestroyOnTheStartingWorld();
+            // No place: this wait is made here, not where the caller awaits it (like `await once`), so the Scope Tree
+            // window opens the caller's method rather than this file.
+            return world != null ? DestroyedFor(world).Wait(string.Empty, 0).WithoutResult() : WaitForDestroyOnTheStartingWorld();
         }
 
         async FlowTask WaitForDestroyOnTheStartingWorld()

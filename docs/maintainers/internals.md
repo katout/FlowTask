@@ -157,6 +157,8 @@
 
 `StateMachineNames<TStateMachine>` が、コンパイラが生成した状態機械の型名から、表示名、宣言している型、メソッド名を型ごとに 1 回（診断を読んだときだけ）計算する（`StateMachineNameParser`）。ラムダは囲むメソッド名、ジェネリック型は型定義を返す。`Flow.Named` の影響は受けない。await の経路には入らない。`FlowScopeInfo.DeclaringType` と `MethodName` がこれを公開し、Unity の Scope Tree がソースを開くのに使う。
 
+待ちを作った場所は、待ちと合成を作る API の `[CallerFilePath]` と `[CallerLineNumber]` の引数を、`FlowNode.SetSite` がノードの `SiteFile` と `SiteLine` に入れる（空のパスは null）。ノードを作らずに状態機械が自分で待つ時間とフレームの待ち（`Park`）は、待ちのノードをプールへ返す前に、その場所を状態機械の `SiteFile` と `SiteLine` へ写す（状態機械には自分の場所がないので、同じフィールドを使う）。`FlowNode.GetWaitSite` が `DescribeWait` と同じ条件で場所を返し（状態機械は止まっている待ちか、直接待つノードの場所。子の状態機械を待つときはなし）、`FlowScopeInfo.WaitingFile` と `WaitingLine`、ダンプ、Unity の Scope Tree がこれを使う。ノードを返すときに消す。`WithoutResult` のノードは、包んだタスクの場所を写す。
+
 ## 実装の制約
 
 - 公開 API を変えずに挙動を変えるときも、`docs/ja/` の該当ページを直す。

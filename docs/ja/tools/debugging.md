@@ -13,19 +13,20 @@ Console.WriteLine(world.Dump());
 ```
 FlowWorld [Default]
 ├─ Game (scope) [Default] waiting: InGame for 12.4s
-│  └─ InGame (scope) [Default] waiting: Race for 12.4s
-│     └─ Race (combinator) [Default] waiting: Race 2/2 branches
-│        ├─ Stages (scope) [Default] waiting: WaitForSeconds(1s) on Default, 0.35s left for 0.65s
-│        └─ Confirm.Next (wait) [Default] waiting: Confirm.Next
-└─ Menu (scope) [UI] waiting: Never for 3s
-   └─ Never (wait) [UI] waiting: Never
+│  └─ InGame (scope) [Default] waiting: Race at InGame.cs:18 for 12.4s
+│     └─ Race (combinator) [Default] waiting: Race 2/2 branches at InGame.cs:18
+│        ├─ Stages (scope) [Default] waiting: WaitForSeconds(1s) on Default, 0.35s left at Stages.cs:9 for 0.65s
+│        └─ Confirm.Next (wait) [Default] waiting: Confirm.Next at InGame.cs:18
+└─ Menu (scope) [UI] waiting: Never at Menu.cs:5 for 3s
+   └─ Never (wait) [UI] waiting: Never at Menu.cs:5
 ```
 
-各行には、名前、ノードの種類、Clock、待っているもの、待っている時間が並びます。
+各行には、名前、ノードの種類、Clock、待っているもの、それを作った場所、待っている時間が並びます。
 
 - 名前は、既定ではメソッド名です。ルートの行は World の名前（`new FlowWorld("Name")`。既定は `FlowWorld`）です。
 - 種類は `scope`（FlowTask メソッド）、`combinator`（Race や WhenAll）、`wait`（シグナルの待ちなど）のどれかです。
 - スコープが直接待つ `NextFrame`、`DelayFrames`、`WaitForSeconds` は子の行にならず、上の `Stages` のようにスコープの行に出ます。Clock を引数で渡したものと、`Flow.Named`、`Flow.WithClock`、`Flow.NonCancelable` を付けたものは、`wait` の子の行になります。
+- `at InGame.cs:18` は、待ちや合成を作った場所（ファイル名と行）です。スコープの行には、直接待っているものの場所が出ます。FlowTask メソッドの呼び出しを待つスコープ（上の `Game`）には出ません（「診断の API」の「待ちを作った場所」）。
 - 待っている時間（`for 12.4s`）はスコープの行にだけ出ます。最後に止まってからの `UnscaledClock` の秒数です。
 - 合成の行には、生きている枝の数が出ます（`Race 2/2 branches`）。決着した後に枝の後始末を待っているときは、`Race decided, 1 branch still ending` のように、決着のしかた（`decided`、`failed`、`canceled`）とまだ終わっていない枝の数が出ます。
 - ブリッジしていない外部の await はダンプに出ません。止まった時点でスコープが例外で終わるためです。
@@ -56,7 +57,7 @@ Clock ごとに Pause の数と持ち主（Pause したスコープのパス）�
 
 ### エディタで見る
 
-- **Unity**：`Window > FlowTask > Scope Tree` が、再生中のスコープツリーと Clock を表示します。スコープの行をダブルクリックすると、そのメソッドをスクリプトで開きます。既定の World のほかに、`FlowWorldRegistry.Register(world)` で登録した World も見られます（[Unity のブリッジとツール](../unity/bridges.md)）。
+- **Unity**：`Window > FlowTask > Scope Tree` が、再生中のスコープツリーと Clock を表示します。行をダブルクリックすると、待ちを作った行をスクリプトで開きます。場所のないスコープの行（FlowTask メソッドの呼び出しを待つもの）は、そのメソッドを開きます。右クリックのメニューからは、どちらも開けます。既定の World のほかに、`FlowWorldRegistry.Register(world)` で登録した World も見られます（[Unity のブリッジとツール](../unity/bridges.md)）。
 - **Godot**：`GD.Print(FlowWorldNode.Default.Dump())` をデバッグ用のキーに割り当てます（[Godot のセットアップ](../godot/setup.md)）。
 
 ## 止まったフローを探す
@@ -85,11 +86,28 @@ var stuck = world.Diagnostics.Walk()
 | `Root` | ルートの `FlowScopeInfo` |
 | `Walk()` | ルートから始めた、全ノード（スコープ、合成、待ち）の深さ優先の列挙 |
 
-`FlowScopeInfo` は、`Name`、`Kind`（`FlowScopeKind` の `Root`、`Scope`、`Combinator`、`Wait`。ノードが解放された後は `Invalid`）、`Status`、`ClockName`、`Waiting`、`WaitingSeconds`、`Path`、`Cause`、`IsCanceling`、`Children` を持ちます。ノードが終わって解放されると、`IsValid` が false になります。
+`FlowScopeInfo` は、`Name`、`Kind`（`FlowScopeKind` の `Root`、`Scope`、`Combinator`、`Wait`。ノードが解放された後は `Invalid`）、`Status`、`ClockName`、`Waiting`、`WaitingFile`、`WaitingLine`、`WaitingSeconds`、`Path`、`Cause`、`IsCanceling`、`Children` を持ちます。ノードが終わって解放されると、`IsValid` が false になります。
 
-- `DeclaringType` と `MethodName` は、FlowTask メソッドのスコープのソースの場所です。ラムダは囲むメソッドの名前になり、`Flow.Named` の影響は受けず、行番号はありません。
+- `DeclaringType` と `MethodName` は、FlowTask メソッドのスコープのソースの場所です。ラムダは囲むメソッドの名前になり、`Flow.Named` の影響は受けず、行番号はありません。待っている行は `WaitingFile` と `WaitingLine` で見ます。
 - フローの中では、`Flow.CurrentScopePath` で今のスコープのパスを取れます。ログに添えると便利です。
 - `world.Clocks` は生きている Clock の一覧です。これが増え続けるなら、長生きするスコープのループの中で `Flow.CreateClock` を呼んでいます。子の FlowTask メソッドの中で作ってください。
+
+### 待ちを作った場所
+
+`WaitingFile` と `WaitingLine` は、待っているものを作った場所です。待ちと合成のノードは自分を作った場所、スコープは直接待っているもの（ノードのない `NextFrame`、`DelayFrames`、`WaitForSeconds` を含む）の場所を返します。
+
+- 場所を記録するのは、`FlowTask.WaitForSeconds`、`DelayFrames`、`NextFrame`、`WaitUntil`、`Never`、`Race`、`WhenAll`、`Signal<T>`・`EventSignal<T>`・`Subscription<T>` の `Next` と `NextOrClosed`、`FlowProperty<T>.WaitUntil`、`Once<T>.Wait`、`FlowHandle.Join` です。末尾の省略できる引数 `callerFilePath` と `callerLineNumber` に、コンパイラが呼び出し元のファイルと行（`[CallerFilePath]`、`[CallerLineNumber]`）を入れます。
+- 記録するのは、待ちを作った場所です。`var t = FlowTask.WaitForSeconds(1);` と作って後で `await t;` すると、作った行が出ます。`WithoutResult()` は、包んだタスクの場所を出します。
+- 場所がないときは、`WaitingFile` が null、`WaitingLine` が 0 です。FlowTask メソッドの呼び出しを待つスコープ（呼び出しは場所を記録しません。その子のスコープの行に、子が待つ場所が出ます）、`FlowBridge` でブリッジした Task、`Once<T>` を直接 `await` したもの（`once.Wait()` なら出ます）、Unity の `WaitForDestroy()` が返す待ち（パッケージの中で作るため）、場所に空の文字列を渡したもの（行を渡しても 0 になります）が、これに当たります。
+- `WaitingFile` は、コンパイラが渡したパスそのままです（ふつうはビルドしたマシンでの絶対パス。`PathMap` の設定で変わります）。ダンプにはファイル名だけが出ます。
+
+待ちを作る関数をゲームの側で包むなら、自分の呼び出し元の場所をそのまま渡します。渡さないと、包んだ関数の中の行が出ます。
+
+```csharp
+public static FlowTask Frames(int count,
+    [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0) =>
+    FlowTask.DelayFrames(count, null, callerFilePath, callerLineNumber);
+```
 
 ## 警告
 
