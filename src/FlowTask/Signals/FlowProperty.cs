@@ -1,7 +1,7 @@
 namespace Katout.FlowTask;
 
 /// <summary>
-/// A value that flows wait on: <see cref="WaitUntil(Func{T, bool})"/> completes at once when the condition holds, and
+/// A value that flows wait on: <see cref="WaitUntil(Func{T, bool}, string, int)"/> completes at once when the condition holds, and
 /// otherwise the condition is checked on every change.
 /// </summary>
 public sealed class FlowProperty<T>
@@ -116,18 +116,20 @@ public sealed class FlowProperty<T>
     }
 
     /// <summary>Completes with the value once <paramref name="predicate"/> holds, at once when it already does.</summary>
-    public FlowTask<T> WaitUntil(Func<T, bool> predicate)
+    public FlowTask<T> WaitUntil(Func<T, bool> predicate, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (predicate == null) throw new ArgumentNullException(nameof(predicate));
         var n = PropertyWaitNode<T, Func<T, bool>>.Rent(this, predicate, static (v, p) => p(v));
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask<T>(n, n.Token);
     }
 
     /// <summary>WaitUntil with explicit state, which needs no closure.</summary>
-    public FlowTask<T> WaitUntil<TState>(TState state, Func<T, TState, bool> predicate)
+    public FlowTask<T> WaitUntil<TState>(TState state, Func<T, TState, bool> predicate, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (predicate == null) throw new ArgumentNullException(nameof(predicate));
         var n = PropertyWaitNode<T, TState>.Rent(this, state, predicate);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask<T>(n, n.Token);
     }
 

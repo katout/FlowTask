@@ -27,10 +27,11 @@ public readonly struct Subscription<T> : IDisposable
     /// nobody waits are kept. On a subscription that has ended (disposed, maybe through a copy), the wait fails with
     /// <see cref="FlowMisuseException"/>.
     /// </summary>
-    public FlowTask<T> Next()
+    public FlowTask<T> Next([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (_core == null) throw DefaultSubscription();
         var n = NextNode<T>.Rent(_core, _token);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask<T>(n, n.Token);
     }
 
@@ -38,10 +39,11 @@ public readonly struct Subscription<T> : IDisposable
     /// Like <see cref="Next"/>, but completes with <c>(true, value)</c> for a value and with <c>(false, default)</c> once
     /// the source is closed and the buffer drained, or the subscription has ended.
     /// </summary>
-    public FlowTask<(bool Received, T Value)> NextOrClosed()
+    public FlowTask<(bool Received, T Value)> NextOrClosed([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (_core == null) throw DefaultSubscription();
         var n = NextOrClosedNode<T>.Rent(_core, _token);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask<(bool Received, T Value)>(n, n.Token);
     }
 

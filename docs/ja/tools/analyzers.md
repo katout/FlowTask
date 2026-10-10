@@ -322,7 +322,7 @@ Task<int> GetScore() => world.Run(Arcade()).AsTask();  // bridge back to Task
 
 ### 検出するもの
 
-FlowTask メソッドのループの中で、`Signal<T>` か `EventSignal<T>` の `Next()` / `NextOrClosed()` を `await` しているもの（`FlowTask.Race(...)` の引数や `FlowProperty<T>.Changed.Next()` も）。
+FlowTask メソッドのループの中で、`Signal<T>` か `EventSignal<T>` の `Next()` / `NextOrClosed()` を `await` しているもの（`FlowTask.Race(...)` の引数や `FlowProperty<T>.Changed.Next()` も。呼び出し元の場所を渡す `Next(file, line)` も）。
 
 `Subscription<T>` の `Next()` と、受け手が繰り返しごとに変わりうるもの（`signals[i].Next()`）は対象外です。ビルドは止まらず、IDE の提案として出ます。
 

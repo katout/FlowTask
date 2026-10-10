@@ -12,7 +12,8 @@ public readonly struct FlowDiagnostics
 
     /// <summary>
     /// Every node, depth first: scopes, combinators and waits. A NextFrame, DelayFrames or WaitForSeconds that a scope
-    /// awaits directly has no node: the scope's <see cref="FlowScopeInfo.Waiting"/> describes it.
+    /// awaits directly has no node: the scope's <see cref="FlowScopeInfo.Waiting"/> describes it, and
+    /// <see cref="FlowScopeInfo.WaitingFile"/> and <see cref="FlowScopeInfo.WaitingLine"/> give its place.
     /// </summary>
     public IEnumerable<FlowScopeInfo> Walk()
     {
@@ -73,6 +74,33 @@ public readonly struct FlowScopeInfo
 
     /// <summary>What it waits for.</summary>
     public string Waiting => IsValid ? _node.DescribeWait() : null;
+
+    /// <summary>
+    /// The source file where what it waits for was created, as the compiler passed it (<c>[CallerFilePath]</c>): for a
+    /// wait or combinator, its own place; for a scope, the place of the wait or combinator it awaits directly. Null when
+    /// unknown: a scope that awaits the call of an async FlowTask method (a call records no place), a bridged Task, an
+    /// awaited Once, or a wait made by code that passed no place.
+    /// </summary>
+    public string WaitingFile
+    {
+        get
+        {
+            if (!IsValid) return null;
+            _node.GetWaitSite(out var file, out _);
+            return file;
+        }
+    }
+
+    /// <summary>The line in <see cref="WaitingFile"/> (<c>[CallerLineNumber]</c>), or 0 when unknown.</summary>
+    public int WaitingLine
+    {
+        get
+        {
+            if (!IsValid) return 0;
+            _node.GetWaitSite(out _, out var line);
+            return line;
+        }
+    }
 
     /// <summary>For a scope: the seconds of UnscaledClock time since it last suspended; 0 for other nodes.</summary>
     public double WaitingSeconds => IsValid && _node.IsStateMachine && _node.World != null ? _node.World.UnscaledClock.Time - _node.SuspendedAt : 0;

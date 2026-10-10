@@ -78,11 +78,24 @@ internal static class ScopeTreeDumper
         if (wait != null)
         {
             sb.Append(" waiting: ").Append(wait);
+            n.GetWaitSite(out var file, out var line);
+            if (file != null) AppendSite(sb, file, line);
             if (n.IsStateMachine) sb.Append(" for ").Append((world.UnscaledClock.Time - n.SuspendedAt).ToString("0.###", CultureInfo.InvariantCulture)).Append('s');
         }
 
         if (n.IsCancelConfirmed) sb.Append(" <canceling: ").Append(n.Cause).Append('>');
         sb.Append('\n');
+    }
+
+    /// <summary>
+    /// " at File.cs:42": the file name without its folders, which differ between machines and engines. Both separators
+    /// are cut, since a path compiled on Windows can be read on another platform (an IL2CPP player).
+    /// </summary>
+    static void AppendSite(StringBuilder sb, string file, int line)
+    {
+        var start = Math.Max(file.LastIndexOf('/'), file.LastIndexOf('\\')) + 1;
+        sb.Append(" at ").Append(file, start, file.Length - start);
+        if (line > 0) sb.Append(':').Append(line.ToString(CultureInfo.InvariantCulture));
     }
 
     static string KindText(FlowScopeKind kind) => kind switch

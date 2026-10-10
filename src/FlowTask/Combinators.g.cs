@@ -14,11 +14,12 @@ public readonly partial struct FlowTask
     /// losing wait on a <see cref="Subscription{T}"/> already received goes back to the subscription. For a timeout, race the
     /// work against <see cref="WaitForSeconds"/>.
     /// </remarks>
-    public static FlowTask<RaceResult<FlowUnit, FlowUnit>> Race(FlowTask t0, FlowTask t1)
+    public static FlowTask<RaceResult<FlowUnit, FlowUnit>> Race(FlowTask t0, FlowTask t1, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t0);
         Flow.CheckStartable<FlowUnit>(t1);
         var n = RaceNode<FlowUnit, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t0));
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         return new FlowTask<RaceResult<FlowUnit, FlowUnit>>(n, n.Token);
@@ -29,284 +30,307 @@ public readonly partial struct FlowTask
     /// (<see cref="FlowUnit"/> for a branch without one); with none, it is a FlowTask. When one throws, the others are
     /// canceled and unwound before the exception is thrown at the await (Task.WhenAll lets them run on).
     /// </summary>
-    public static FlowTask WhenAll(FlowTask t1, FlowTask t2)
+    public static FlowTask WhenAll(FlowTask t1, FlowTask t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         var n = WhenAllVoidNode.Rent(2);
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         return new FlowTask(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<FlowUnit, T1>> Race<T1>(FlowTask t0, FlowTask<T1> t1)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<FlowUnit, T1>> Race<T1>(FlowTask t0, FlowTask<T1> t1, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t0);
         Flow.CheckStartable(t1);
         var n = RaceNode<FlowUnit, T1>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t0));
         n.AddBranch(Flow.Materialize(t1));
         return new FlowTask<RaceResult<FlowUnit, T1>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(FlowUnit, T2)> WhenAll<T2>(FlowTask t1, FlowTask<T2> t2)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(FlowUnit, T2)> WhenAll<T2>(FlowTask t1, FlowTask<T2> t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable(t2);
         var n = WhenAllNode<FlowUnit, T2>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize(t2));
         return new FlowTask<(FlowUnit, T2)>(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<T0, FlowUnit>> Race<T0>(FlowTask<T0> t0, FlowTask t1)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<T0, FlowUnit>> Race<T0>(FlowTask<T0> t0, FlowTask t1, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t0);
         Flow.CheckStartable<FlowUnit>(t1);
         var n = RaceNode<T0, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t0));
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         return new FlowTask<RaceResult<T0, FlowUnit>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(T1, FlowUnit)> WhenAll<T1>(FlowTask<T1> t1, FlowTask t2)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(T1, FlowUnit)> WhenAll<T1>(FlowTask<T1> t1, FlowTask t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         var n = WhenAllNode<T1, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         return new FlowTask<(T1, FlowUnit)>(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<T0, T1>> Race<T0, T1>(FlowTask<T0> t0, FlowTask<T1> t1)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<T0, T1>> Race<T0, T1>(FlowTask<T0> t0, FlowTask<T1> t1, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t0);
         Flow.CheckStartable(t1);
         var n = RaceNode<T0, T1>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t0));
         n.AddBranch(Flow.Materialize(t1));
         return new FlowTask<RaceResult<T0, T1>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(T1, T2)> WhenAll<T1, T2>(FlowTask<T1> t1, FlowTask<T2> t2)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(T1, T2)> WhenAll<T1, T2>(FlowTask<T1> t1, FlowTask<T2> t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t1);
         Flow.CheckStartable(t2);
         var n = WhenAllNode<T1, T2>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize(t2));
         return new FlowTask<(T1, T2)>(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<FlowUnit, FlowUnit, FlowUnit>> Race(FlowTask t0, FlowTask t1, FlowTask t2)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<FlowUnit, FlowUnit, FlowUnit>> Race(FlowTask t0, FlowTask t1, FlowTask t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t0);
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         var n = RaceNode<FlowUnit, FlowUnit, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t0));
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         return new FlowTask<RaceResult<FlowUnit, FlowUnit, FlowUnit>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask WhenAll(FlowTask t1, FlowTask t2, FlowTask t3)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask WhenAll(FlowTask t1, FlowTask t2, FlowTask t3, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         Flow.CheckStartable<FlowUnit>(t3);
         var n = WhenAllVoidNode.Rent(3);
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         n.AddBranch(Flow.Materialize<FlowUnit>(t3));
         return new FlowTask(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<FlowUnit, FlowUnit, T2>> Race<T2>(FlowTask t0, FlowTask t1, FlowTask<T2> t2)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<FlowUnit, FlowUnit, T2>> Race<T2>(FlowTask t0, FlowTask t1, FlowTask<T2> t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t0);
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable(t2);
         var n = RaceNode<FlowUnit, FlowUnit, T2>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t0));
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize(t2));
         return new FlowTask<RaceResult<FlowUnit, FlowUnit, T2>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(FlowUnit, FlowUnit, T3)> WhenAll<T3>(FlowTask t1, FlowTask t2, FlowTask<T3> t3)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(FlowUnit, FlowUnit, T3)> WhenAll<T3>(FlowTask t1, FlowTask t2, FlowTask<T3> t3, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         Flow.CheckStartable(t3);
         var n = WhenAllNode<FlowUnit, FlowUnit, T3>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         n.AddBranch(Flow.Materialize(t3));
         return new FlowTask<(FlowUnit, FlowUnit, T3)>(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<FlowUnit, T1, FlowUnit>> Race<T1>(FlowTask t0, FlowTask<T1> t1, FlowTask t2)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<FlowUnit, T1, FlowUnit>> Race<T1>(FlowTask t0, FlowTask<T1> t1, FlowTask t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t0);
         Flow.CheckStartable(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         var n = RaceNode<FlowUnit, T1, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t0));
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         return new FlowTask<RaceResult<FlowUnit, T1, FlowUnit>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(FlowUnit, T2, FlowUnit)> WhenAll<T2>(FlowTask t1, FlowTask<T2> t2, FlowTask t3)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(FlowUnit, T2, FlowUnit)> WhenAll<T2>(FlowTask t1, FlowTask<T2> t2, FlowTask t3, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable(t2);
         Flow.CheckStartable<FlowUnit>(t3);
         var n = WhenAllNode<FlowUnit, T2, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize(t2));
         n.AddBranch(Flow.Materialize<FlowUnit>(t3));
         return new FlowTask<(FlowUnit, T2, FlowUnit)>(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<FlowUnit, T1, T2>> Race<T1, T2>(FlowTask t0, FlowTask<T1> t1, FlowTask<T2> t2)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<FlowUnit, T1, T2>> Race<T1, T2>(FlowTask t0, FlowTask<T1> t1, FlowTask<T2> t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t0);
         Flow.CheckStartable(t1);
         Flow.CheckStartable(t2);
         var n = RaceNode<FlowUnit, T1, T2>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t0));
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize(t2));
         return new FlowTask<RaceResult<FlowUnit, T1, T2>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(FlowUnit, T2, T3)> WhenAll<T2, T3>(FlowTask t1, FlowTask<T2> t2, FlowTask<T3> t3)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(FlowUnit, T2, T3)> WhenAll<T2, T3>(FlowTask t1, FlowTask<T2> t2, FlowTask<T3> t3, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable(t2);
         Flow.CheckStartable(t3);
         var n = WhenAllNode<FlowUnit, T2, T3>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize(t2));
         n.AddBranch(Flow.Materialize(t3));
         return new FlowTask<(FlowUnit, T2, T3)>(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<T0, FlowUnit, FlowUnit>> Race<T0>(FlowTask<T0> t0, FlowTask t1, FlowTask t2)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<T0, FlowUnit, FlowUnit>> Race<T0>(FlowTask<T0> t0, FlowTask t1, FlowTask t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t0);
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         var n = RaceNode<T0, FlowUnit, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t0));
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         return new FlowTask<RaceResult<T0, FlowUnit, FlowUnit>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(T1, FlowUnit, FlowUnit)> WhenAll<T1>(FlowTask<T1> t1, FlowTask t2, FlowTask t3)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(T1, FlowUnit, FlowUnit)> WhenAll<T1>(FlowTask<T1> t1, FlowTask t2, FlowTask t3, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         Flow.CheckStartable<FlowUnit>(t3);
         var n = WhenAllNode<T1, FlowUnit, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         n.AddBranch(Flow.Materialize<FlowUnit>(t3));
         return new FlowTask<(T1, FlowUnit, FlowUnit)>(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<T0, FlowUnit, T2>> Race<T0, T2>(FlowTask<T0> t0, FlowTask t1, FlowTask<T2> t2)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<T0, FlowUnit, T2>> Race<T0, T2>(FlowTask<T0> t0, FlowTask t1, FlowTask<T2> t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t0);
         Flow.CheckStartable<FlowUnit>(t1);
         Flow.CheckStartable(t2);
         var n = RaceNode<T0, FlowUnit, T2>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t0));
         n.AddBranch(Flow.Materialize<FlowUnit>(t1));
         n.AddBranch(Flow.Materialize(t2));
         return new FlowTask<RaceResult<T0, FlowUnit, T2>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(T1, FlowUnit, T3)> WhenAll<T1, T3>(FlowTask<T1> t1, FlowTask t2, FlowTask<T3> t3)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(T1, FlowUnit, T3)> WhenAll<T1, T3>(FlowTask<T1> t1, FlowTask t2, FlowTask<T3> t3, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         Flow.CheckStartable(t3);
         var n = WhenAllNode<T1, FlowUnit, T3>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         n.AddBranch(Flow.Materialize(t3));
         return new FlowTask<(T1, FlowUnit, T3)>(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<T0, T1, FlowUnit>> Race<T0, T1>(FlowTask<T0> t0, FlowTask<T1> t1, FlowTask t2)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<T0, T1, FlowUnit>> Race<T0, T1>(FlowTask<T0> t0, FlowTask<T1> t1, FlowTask t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t0);
         Flow.CheckStartable(t1);
         Flow.CheckStartable<FlowUnit>(t2);
         var n = RaceNode<T0, T1, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t0));
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize<FlowUnit>(t2));
         return new FlowTask<RaceResult<T0, T1, FlowUnit>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(T1, T2, FlowUnit)> WhenAll<T1, T2>(FlowTask<T1> t1, FlowTask<T2> t2, FlowTask t3)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(T1, T2, FlowUnit)> WhenAll<T1, T2>(FlowTask<T1> t1, FlowTask<T2> t2, FlowTask t3, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t1);
         Flow.CheckStartable(t2);
         Flow.CheckStartable<FlowUnit>(t3);
         var n = WhenAllNode<T1, T2, FlowUnit>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize(t2));
         n.AddBranch(Flow.Materialize<FlowUnit>(t3));
         return new FlowTask<(T1, T2, FlowUnit)>(n, n.Token);
     }
 
-    /// <inheritdoc cref="Race(FlowTask, FlowTask)"/>
-    public static FlowTask<RaceResult<T0, T1, T2>> Race<T0, T1, T2>(FlowTask<T0> t0, FlowTask<T1> t1, FlowTask<T2> t2)
+    /// <inheritdoc cref="Race(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<RaceResult<T0, T1, T2>> Race<T0, T1, T2>(FlowTask<T0> t0, FlowTask<T1> t1, FlowTask<T2> t2, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t0);
         Flow.CheckStartable(t1);
         Flow.CheckStartable(t2);
         var n = RaceNode<T0, T1, T2>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t0));
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize(t2));
         return new FlowTask<RaceResult<T0, T1, T2>>(n, n.Token);
     }
 
-    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask)"/>
-    public static FlowTask<(T1, T2, T3)> WhenAll<T1, T2, T3>(FlowTask<T1> t1, FlowTask<T2> t2, FlowTask<T3> t3)
+    /// <inheritdoc cref="WhenAll(FlowTask, FlowTask, string, int)"/>
+    public static FlowTask<(T1, T2, T3)> WhenAll<T1, T2, T3>(FlowTask<T1> t1, FlowTask<T2> t2, FlowTask<T3> t3, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         Flow.CheckStartable(t1);
         Flow.CheckStartable(t2);
         Flow.CheckStartable(t3);
         var n = WhenAllNode<T1, T2, T3>.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         n.AddBranch(Flow.Materialize(t1));
         n.AddBranch(Flow.Materialize(t2));
         n.AddBranch(Flow.Materialize(t3));

@@ -28,9 +28,9 @@ public readonly struct FlowHandle
     public void Cancel() => _inner.Cancel();
 
     /// <inheritdoc cref="FlowHandle{T}.Join"/>
-    public FlowTask Join()
+    public FlowTask Join([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
-        var t = _inner.Join();
+        var t = _inner.Join(callerFilePath, callerLineNumber);
         return new FlowTask(t.Node, t.Token);
     }
 
@@ -109,7 +109,8 @@ public readonly struct FlowHandle<T>
     /// and look at <see cref="Status"/>. A handle can be joined once; a join from inside the task, or from a World on
     /// another thread, throws at its await.
     /// </summary>
-    public FlowTask<T> Join() => JoinNode<T>.Create(this);
+    public FlowTask<T> Join([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0) =>
+        JoinNode<T>.Create(this, callerFilePath, callerLineNumber);
 
     internal bool TryMarkJoined()
     {

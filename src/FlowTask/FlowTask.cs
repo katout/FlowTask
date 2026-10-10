@@ -60,10 +60,11 @@ public readonly partial struct FlowTask
     /// the first Tick whose accumulated time reaches the target. The time adds up in double precision, so a duration on a
     /// frame boundary can end one frame later; <see cref="DelayFrames"/> waits an exact number of frames.
     /// </summary>
-    public static FlowTask WaitForSeconds(double seconds, Clock clock = null)
+    public static FlowTask WaitForSeconds(double seconds, Clock clock = null, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (seconds < 0 || double.IsNaN(seconds)) throw new ArgumentOutOfRangeException(nameof(seconds));
         var n = WaitForSecondsNode.Rent(seconds, clock);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask(n, n.Token);
     }
 
@@ -72,39 +73,44 @@ public readonly partial struct FlowTask
     /// clock is not paused (<see cref="Clock.FrameCount"/>). Zero completes at once; otherwise it never resumes in the
     /// flush in which it started.
     /// </summary>
-    public static FlowTask DelayFrames(int frameCount, Clock clock = null)
+    public static FlowTask DelayFrames(int frameCount, Clock clock = null, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (frameCount < 0) throw new ArgumentOutOfRangeException(nameof(frameCount));
         var n = DelayFramesNode.Rent(frameCount, clock);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask(n, n.Token);
     }
 
     /// <summary>Waits for the next frame of the scope's clock: <c>DelayFrames(1)</c>.</summary>
-    public static FlowTask NextFrame(Clock clock = null) => DelayFrames(1, clock);
+    public static FlowTask NextFrame(Clock clock = null, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0) =>
+        DelayFrames(1, clock, callerFilePath, callerLineNumber);
 
     /// <summary>
     /// Waits until <paramref name="predicate"/> returns true: checked when awaited, then in every Tick in which the clock is
     /// not paused. An exception of the predicate is thrown at the await.
     /// </summary>
-    public static FlowTask WaitUntil(Func<bool> predicate, Clock clock = null)
+    public static FlowTask WaitUntil(Func<bool> predicate, Clock clock = null, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (predicate == null) throw new ArgumentNullException(nameof(predicate));
         var n = WaitUntilNode<Func<bool>>.Rent(predicate, static p => p(), clock);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask(n, n.Token);
     }
 
     /// <summary>WaitUntil with explicit state, so that a static lambda needs no closure.</summary>
-    public static FlowTask WaitUntil<TState>(TState state, Func<TState, bool> predicate, Clock clock = null)
+    public static FlowTask WaitUntil<TState>(TState state, Func<TState, bool> predicate, Clock clock = null, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (predicate == null) throw new ArgumentNullException(nameof(predicate));
         var n = WaitUntilNode<TState>.Rent(state, predicate, clock);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask(n, n.Token);
     }
 
     /// <summary>A task that never completes: it ends when its scope is canceled.</summary>
-    public static FlowTask Never()
+    public static FlowTask Never([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         var n = NeverNode.Rent();
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask(n, n.Token);
     }
 
@@ -113,21 +119,23 @@ public readonly partial struct FlowTask
     /// await (Task.WhenAll lets them run on). Each branch runs as a child of the combinator. For 2-3 branches use the typed
     /// overloads.
     /// </summary>
-    public static FlowTask WhenAll(IReadOnlyList<FlowTask> tasks)
+    public static FlowTask WhenAll(IReadOnlyList<FlowTask> tasks, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (tasks == null) throw new ArgumentNullException(nameof(tasks));
         for (var i = 0; i < tasks.Count; i++) Flow.CheckStartable<FlowUnit>(tasks[i]);
         var n = WhenAllVoidNode.Rent(tasks.Count);
+        n.SetSite(callerFilePath, callerLineNumber);
         for (var i = 0; i < tasks.Count; i++) n.AddBranch(Flow.Materialize<FlowUnit>(tasks[i]));
         return new FlowTask(n, n.Token);
     }
 
-    /// <summary>Waits for every task and returns their values in order; see <see cref="WhenAll(IReadOnlyList{FlowTask})"/>.</summary>
-    public static FlowTask<T[]> WhenAll<T>(IReadOnlyList<FlowTask<T>> tasks)
+    /// <summary>Waits for every task and returns their values in order; see <see cref="WhenAll(IReadOnlyList{FlowTask}, string, int)"/>.</summary>
+    public static FlowTask<T[]> WhenAll<T>(IReadOnlyList<FlowTask<T>> tasks, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (tasks == null) throw new ArgumentNullException(nameof(tasks));
         for (var i = 0; i < tasks.Count; i++) Flow.CheckStartable(tasks[i]);
         var n = WhenAllArrayNode<T>.Rent(tasks.Count);
+        n.SetSite(callerFilePath, callerLineNumber);
         for (var i = 0; i < tasks.Count; i++) n.AddBranch(Flow.Materialize(tasks[i]));
         return new FlowTask<T[]>(n, n.Token);
     }
@@ -143,23 +151,25 @@ public readonly partial struct FlowTask
     /// wait on a <see cref="Subscription{T}"/> already received goes back to the subscription. For a timeout, race the
     /// work against <see cref="WaitForSeconds"/>.
     /// </remarks>
-    public static FlowTask<int> Race(IReadOnlyList<FlowTask> tasks)
+    public static FlowTask<int> Race(IReadOnlyList<FlowTask> tasks, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (tasks == null) throw new ArgumentNullException(nameof(tasks));
         if (tasks.Count == 0) throw new ArgumentException("Race needs at least one task.", nameof(tasks));
         for (var i = 0; i < tasks.Count; i++) Flow.CheckStartable<FlowUnit>(tasks[i]);
         var n = RaceIndexNode.Rent(tasks.Count);
+        n.SetSite(callerFilePath, callerLineNumber);
         for (var i = 0; i < tasks.Count; i++) n.AddBranch(Flow.Materialize<FlowUnit>(tasks[i]));
         return new FlowTask<int>(n, n.Token);
     }
 
-    /// <summary>Returns the index and value of the first task to complete; see <see cref="Race(IReadOnlyList{FlowTask})"/>.</summary>
-    public static FlowTask<RaceResult<T>> Race<T>(IReadOnlyList<FlowTask<T>> tasks)
+    /// <summary>Returns the index and value of the first task to complete; see <see cref="Race(IReadOnlyList{FlowTask}, string, int)"/>.</summary>
+    public static FlowTask<RaceResult<T>> Race<T>(IReadOnlyList<FlowTask<T>> tasks, [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         if (tasks == null) throw new ArgumentNullException(nameof(tasks));
         if (tasks.Count == 0) throw new ArgumentException("Race needs at least one task.", nameof(tasks));
         for (var i = 0; i < tasks.Count; i++) Flow.CheckStartable(tasks[i]);
         var n = RaceArrayNode<T>.Rent(tasks.Count);
+        n.SetSite(callerFilePath, callerLineNumber);
         for (var i = 0; i < tasks.Count; i++) n.AddBranch(Flow.Materialize(tasks[i]));
         return new FlowTask<RaceResult<T>>(n, n.Token);
     }

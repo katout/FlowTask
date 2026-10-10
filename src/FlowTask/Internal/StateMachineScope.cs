@@ -225,6 +225,9 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
     internal override void Park(FlowNode wait)
     {
         wait.GetParkTarget(Clock, out _parkKind, out _parkTarget, out _parkAmount);
+        // A state machine has no place of its own: its SiteFile and SiteLine hold the parked wait's.
+        SiteFile = wait.SiteFile;
+        SiteLine = wait.SiteLine;
         Flags |= NodeFlags.ParkedWait;
         World.TickList.Add(this);
     }
@@ -280,6 +283,31 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
         var a = Awaiting;
         if (a == null || a.Token != AwaitingToken || a.IsTerminated) return null;
         return a.IsLeaf ? a.DescribeWait() ?? a.DisplayName : a.DisplayName;
+    }
+
+    /// <summary>
+    /// The place of the parked wait, or of the node awaited directly: a wait's or combinator's own place, none for the
+    /// scope of an async FlowTask method (its call records no place).
+    /// </summary>
+    internal override void GetWaitSite(out string file, out int line)
+    {
+        if ((Flags & (NodeFlags.ParkedWait | NodeFlags.InTickList)) == (NodeFlags.ParkedWait | NodeFlags.InTickList))
+        {
+            file = SiteFile;
+            line = SiteLine;
+            return;
+        }
+
+        var a = Awaiting;
+        if (a == null || a.Token != AwaitingToken || a.IsTerminated || a.IsStateMachine)
+        {
+            file = null;
+            line = 0;
+            return;
+        }
+
+        file = a.SiteFile;
+        line = a.SiteLine;
     }
 }
 

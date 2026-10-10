@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Katout.FlowTask.Tests;
 
@@ -97,7 +98,9 @@ internal static class DeterminismProbe
             world.Tick(1.0 / 60);
         }
 
-        log.Add(world.Dump().Replace("\r", "", StringComparison.Ordinal));
+        // Without the places (" at File.cs:42"): the hash compares the execution order, so moving a line of this file must
+        // not change it. WaitSiteTests and DiagnosticsReportingTests check the places.
+        log.Add(Regex.Replace(world.Dump().Replace("\r", "", StringComparison.Ordinal), @" at [^ \n]+\.cs(:\d+)?", ""));
         return log;
     }
 

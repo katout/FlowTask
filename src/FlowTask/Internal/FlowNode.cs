@@ -18,6 +18,11 @@ internal abstract class FlowNode
     internal Clock ClockOverride;
     internal string CustomName;
 
+    // Where a wait or combinator was created (the caller's file and line), for diagnostics; null and 0 when unknown. A
+    // state machine keeps here the place of the wait it parks (read only through GetWaitSite).
+    internal string SiteFile;
+    internal int SiteLine;
+
     // Tree links; children in start order.
     internal FlowNode Parent;
     internal FlowNode FirstChild;
@@ -97,6 +102,24 @@ internal abstract class FlowNode
 
     /// <summary>What the node waits for, for dumps.</summary>
     internal virtual string DescribeWait() => null;
+
+    /// <summary>
+    /// Where what <see cref="DescribeWait"/> describes was created: a wait's or combinator's own place; for a state
+    /// machine, the place of the wait it waits on directly.
+    /// </summary>
+    internal virtual void GetWaitSite(out string file, out int line)
+    {
+        file = SiteFile;
+        line = SiteLine;
+    }
+
+    /// <summary>Records where the wait or combinator was created; an empty path is unknown, and so is its line.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void SetSite(string file, int line)
+    {
+        SiteFile = string.IsNullOrEmpty(file) ? null : file;
+        SiteLine = SiteFile == null ? 0 : line;
+    }
 
     /// <summary>The clock whose Pause holds this node's queued resume.</summary>
     internal virtual Clock ResumeClock => Clock;
@@ -466,6 +489,8 @@ internal abstract class FlowNode
         Clock = null;
         ClockOverride = null;
         CustomName = null;
+        SiteFile = null;
+        SiteLine = 0;
         Parent = FirstChild = LastChild = PrevSibling = NextSibling = null;
         Awaiter = null;
         AwaiterToken = 0;

@@ -35,14 +35,15 @@ public sealed class Once<T> : IWaitSource<T>
     }
 
     /// <summary>Waits for the value; completes at once when it is set.</summary>
-    public FlowTask<T> Wait()
+    public FlowTask<T> Wait([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0)
     {
         var n = NextNode<T>.Rent(this, 0);
+        n.SetSite(callerFilePath, callerLineNumber);
         return new FlowTask<T>(n, n.Token);
     }
 
-    /// <summary>Awaits <see cref="Wait"/>.</summary>
-    public FlowTask<T>.Awaiter GetAwaiter() => Wait().GetAwaiter();
+    /// <summary>Awaits <see cref="Wait"/>; the wait records no place (an await calls this without the caller's file and line).</summary>
+    public FlowTask<T>.Awaiter GetAwaiter() => Wait(string.Empty, 0).GetAwaiter();
 
     BeginResult IWaitSource<T>.Begin(IValueReceiver<T> receiver, uint receiverToken, uint sourceToken, FlowWorld world, out T value)
     {

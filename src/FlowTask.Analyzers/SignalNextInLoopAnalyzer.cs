@@ -104,8 +104,8 @@ internal static class SignalLoops
             (n is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax) && (intoAwaits || n is not AwaitExpressionSyntax)));
         foreach (var node in descendants)
         {
+            // Any arguments: they can only be the caller's file and line, passed on by a helper of the game's own.
             if (node is InvocationExpressionSyntax invocation &&
-                invocation.ArgumentList.Arguments.Count == 0 &&
                 invocation.Expression is MemberAccessExpressionSyntax memberAccess &&
                 (memberAccess.Name.Identifier.ValueText == "Next" || memberAccess.Name.Identifier.ValueText == "NextOrClosed"))
             {

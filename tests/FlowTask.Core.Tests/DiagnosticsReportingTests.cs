@@ -510,13 +510,15 @@ public class DiagnosticsReportingTests : FlowTestBase
         closing.Cancel();
         Tick();
         var dump = World.Dump();
+        // Where each wait was created: its file name and line (WaitSiteTests checks the lines).
+        const string At = @" at DiagnosticsReportingTests\.cs:\d+";
         Assert.That(dump, Does.StartWith("FlowWorld [Default]\n"), dump);
-        Assert.That(dump, Does.Match(@"\n├─ Dialog \(scope\) \[Default\] waiting: Race for 3\.0\d*s\n"), dump);
-        Assert.That(dump, Does.Contain("\n│  └─ Race (combinator) [Default] waiting: Race 2/2 branches\n"), dump);
-        Assert.That(dump, Does.Contain("\n│     ├─ Busy (scope) [Default] waiting: NextFrame on Default, 1 frame(s) left for 0s\n"), dump);
-        Assert.That(dump, Does.Contain("\n│     └─ Confirm.Next (wait) [Default] waiting: Confirm.Next\n"), dump);
-        Assert.That(dump, Does.Contain("\n├─ Login.Next (wait) [Default] waiting: Login.Next\n"), dump);
-        Assert.That(dump, Does.EndWith("\n└─ Closing (scope) [Default] waiting: WaitForSeconds(10s) on Default, 10s left for 0s <canceling: Explicit>\n"), dump);
+        Assert.That(dump, Does.Match(@"\n├─ Dialog \(scope\) \[Default\] waiting: Race" + At + @" for 3\.0\d*s\n"), dump);
+        Assert.That(dump, Does.Match(@"\n│  └─ Race \(combinator\) \[Default\] waiting: Race 2/2 branches" + At + @"\n"), dump);
+        Assert.That(dump, Does.Match(@"\n│     ├─ Busy \(scope\) \[Default\] waiting: NextFrame on Default, 1 frame\(s\) left" + At + @" for 0s\n"), dump);
+        Assert.That(dump, Does.Match(@"\n│     └─ Confirm\.Next \(wait\) \[Default\] waiting: Confirm\.Next" + At + @"\n"), dump);
+        Assert.That(dump, Does.Match(@"\n├─ Login\.Next \(wait\) \[Default\] waiting: Login\.Next" + At + @"\n"), dump);
+        Assert.That(dump, Does.Match(@"\n└─ Closing \(scope\) \[Default\] waiting: WaitForSeconds\(10s\) on Default, 10s left" + At + @" for 0s <canceling: Explicit>\n$"), dump);
 
         var scopes = World.Diagnostics.Walk().ToDictionary(s => s.Name);
         Assert.That(scopes["Dialog"].WaitingSeconds, Is.GreaterThan(3.0));

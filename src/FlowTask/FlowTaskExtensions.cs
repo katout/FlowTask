@@ -11,6 +11,8 @@ public static class FlowTaskExtensions
     {
         var inner = Flow.Materialize(task);
         var n = DiscardNode<T>.Rent(inner, inner.Token);
+        // Transparent: a scope awaiting it shows the place of the task it wraps.
+        n.SetSite(inner.SiteFile, inner.SiteLine);
         return new FlowTask(n, n.Token);
     }
 }

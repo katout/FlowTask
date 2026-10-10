@@ -50,8 +50,11 @@ internal static class GenCombinators
         "</summary>",
     };
 
-    const string RaceInherit = "<inheritdoc cref=\"Race(FlowTask, FlowTask)\"/>";
-    const string WhenAllInherit = "<inheritdoc cref=\"WhenAll(FlowTask, FlowTask)\"/>";
+    const string RaceInherit = "<inheritdoc cref=\"Race(FlowTask, FlowTask, string, int)\"/>";
+    const string WhenAllInherit = "<inheritdoc cref=\"WhenAll(FlowTask, FlowTask, string, int)\"/>";
+
+    // The caller's file and line, for diagnostics (FlowScopeInfo.WaitingFile), as on the list overloads in FlowTask.cs.
+    const string CallerParams = ", [CallerFilePath] string callerFilePath = \"\", [CallerLineNumber] int callerLineNumber = 0";
 
     static int Main(string[] args)
     {
@@ -198,17 +201,17 @@ internal static class GenCombinators
         return string.Join("\n", lines);
     }
 
-    /// <summary>Type parameter list, parameter list, branch result types, argument checks and AddBranch lines, with names
-    /// counted from first. The checks come before the node is rented, so a rejected argument (default, already started)
+    /// <summary>Type parameter list, parameter list (ending with the caller's file and line), branch result types, argument
+    /// checks, and the lines that record the place and add the branches, with names counted from first. The checks come before the node is rented, so a rejected argument (default, already started)
     /// leaves no unstarted combinator behind.</summary>
     static (string TypeDecl, string Params, string Results, string Checks, string Adds) GenSignature(int n, bool[] mask, int first)
     {
         var generic = Enumerable.Range(0, n).Where(i => mask[i]).Select(i => $"T{i + first}").ToArray();
         var typeDecl = generic.Length > 0 ? $"<{string.Join(", ", generic)}>" : "";
-        var parameters = string.Join(", ", Enumerable.Range(0, n).Select(i => mask[i] ? $"FlowTask<T{i + first}> t{i + first}" : $"FlowTask t{i + first}"));
+        var parameters = string.Join(", ", Enumerable.Range(0, n).Select(i => mask[i] ? $"FlowTask<T{i + first}> t{i + first}" : $"FlowTask t{i + first}")) + CallerParams;
         var results = string.Join(", ", Enumerable.Range(0, n).Select(i => mask[i] ? $"T{i + first}" : "FlowUnit"));
         var checks = string.Join("\n", Enumerable.Range(0, n).Select(i => $"        Flow.CheckStartable{(mask[i] ? "" : "<FlowUnit>")}(t{i + first});"));
-        var adds = string.Join("\n", Enumerable.Range(0, n).Select(i => $"        n.AddBranch(Flow.Materialize{(mask[i] ? "" : "<FlowUnit>")}(t{i + first}));"));
+        var adds = "        n.SetSite(callerFilePath, callerLineNumber);\n" + string.Join("\n", Enumerable.Range(0, n).Select(i => $"        n.AddBranch(Flow.Materialize{(mask[i] ? "" : "<FlowUnit>")}(t{i + first}));"));
         return (typeDecl, parameters, results, checks, adds);
     }
 

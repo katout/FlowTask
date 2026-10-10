@@ -26,7 +26,7 @@ public class DeterminismAndTestingTests
     /// (Mono and IL2CPP), so a match there proves the execution order is identical on every platform. Update the
     /// constant only when the probe, the dump format or the execution order changes intentionally (last: the reduced Core,
     /// whose probe catches exceptions with try/catch, waits for the FlowProperty to change after it matched, and whose
-    /// wait failures take their turn in the queue).
+    /// wait failures take their turn in the queue). The places in the dump are left out of the hash.
     /// </summary>
     const string ReferenceProbeHash = "1ad4d534bb87fbb4d896ce0d79dfc3bd8600f29c9e03f13279c00c4246cdc980";
 

@@ -13,19 +13,20 @@ Console.WriteLine(world.Dump());
 ```
 FlowWorld [Default]
 ├─ Game (scope) [Default] waiting: InGame for 12.4s
-│  └─ InGame (scope) [Default] waiting: Race for 12.4s
-│     └─ Race (combinator) [Default] waiting: Race 2/2 branches
-│        ├─ Stages (scope) [Default] waiting: WaitForSeconds(1s) on Default, 0.35s left for 0.65s
-│        └─ Confirm.Next (wait) [Default] waiting: Confirm.Next
-└─ Menu (scope) [UI] waiting: Never for 3s
-   └─ Never (wait) [UI] waiting: Never
+│  └─ InGame (scope) [Default] waiting: Race at InGame.cs:18 for 12.4s
+│     └─ Race (combinator) [Default] waiting: Race 2/2 branches at InGame.cs:18
+│        ├─ Stages (scope) [Default] waiting: WaitForSeconds(1s) on Default, 0.35s left at Stages.cs:9 for 0.65s
+│        └─ Confirm.Next (wait) [Default] waiting: Confirm.Next at InGame.cs:18
+└─ Menu (scope) [UI] waiting: Never at Menu.cs:5 for 3s
+   └─ Never (wait) [UI] waiting: Never at Menu.cs:5
 ```
 
-Each line shows the name, the node kind, the Clock, what it is waiting for, and how long it has been waiting.
+Each line shows the name, the node kind, the Clock, what it is waiting for, where that was created, and how long it has been waiting.
 
 - By default, the name is the method name. The root line shows the World's name (`new FlowWorld("Name")`; the default is `FlowWorld`).
 - The kind is one of `scope` (a FlowTask method), `combinator` (Race or WhenAll), and `wait` (such as waiting on a signal).
 - `NextFrame`, `DelayFrames`, and `WaitForSeconds` that a scope awaits directly don't get their own child lines; they appear on the scope's line, like `Stages` above. Ones given a Clock as an argument, and ones wrapped in `Flow.Named`, `Flow.WithClock`, or `Flow.NonCancelable`, become child lines of kind `wait`.
+- `at InGame.cs:18` is where the wait or combinator was created (file name and line). A scope line shows the place of what the scope awaits directly. A scope that awaits the call of a FlowTask method (`Game` above) shows none (see "Where a wait was created" under "Diagnostics API").
 - The waiting time (`for 12.4s`) appears only on scope lines. It is the number of seconds of `UnscaledClock` since the scope last suspended.
 - A composition line shows the number of live branches (`Race 2/2 branches`). When it has been decided and is waiting for its branches to clean up, it shows how it was decided (`decided`, `failed`, `canceled`) and the number of branches that haven't finished yet, like `Race decided, 1 branch still ending`.
 - An external await that wasn't bridged doesn't appear in the dump, because the scope ends with an exception at the point it suspends.
@@ -56,7 +57,7 @@ For each Clock, it shows the number of Pauses and their owners (the paths of the
 
 ### Viewing it in the editor
 
-- **Unity**: `Window > FlowTask > Scope Tree` shows the scope tree and Clocks during play. Double-click a scope line to open that method in your script editor. Besides the default World, it can show Worlds registered with `FlowWorldRegistry.Register(world)` ([Unity bridges and tools](../unity/bridges.md)).
+- **Unity**: `Window > FlowTask > Scope Tree` shows the scope tree and Clocks during play. Double-click a line to open the line where its wait was created. A scope line without a place (one that awaits the call of a FlowTask method) opens that method instead. The context menu opens either. Besides the default World, it can show Worlds registered with `FlowWorldRegistry.Register(world)` ([Unity bridges and tools](../unity/bridges.md)).
 - **Godot**: bind `GD.Print(FlowWorldNode.Default.Dump())` to a debug key ([Godot setup](../godot/setup.md)).
 
 ## Finding stuck flows
@@ -85,11 +86,28 @@ var stuck = world.Diagnostics.Walk()
 | `Root` | The root `FlowScopeInfo` |
 | `Walk()` | A depth-first enumeration of all nodes (scopes, compositions, waits), starting from the root |
 
-`FlowScopeInfo` has `Name`, `Kind` (`FlowScopeKind`: `Root`, `Scope`, `Combinator`, `Wait`; `Invalid` once the node is released), `Status`, `ClockName`, `Waiting`, `WaitingSeconds`, `Path`, `Cause`, `IsCanceling`, and `Children`. When the node ends and is released, `IsValid` becomes false.
+`FlowScopeInfo` has `Name`, `Kind` (`FlowScopeKind`: `Root`, `Scope`, `Combinator`, `Wait`; `Invalid` once the node is released), `Status`, `ClockName`, `Waiting`, `WaitingFile`, `WaitingLine`, `WaitingSeconds`, `Path`, `Cause`, `IsCanceling`, and `Children`. When the node ends and is released, `IsValid` becomes false.
 
-- `DeclaringType` and `MethodName` give the source location of a FlowTask method's scope. A lambda gets the name of its enclosing method; `Flow.Named` doesn't affect them, and there is no line number.
+- `DeclaringType` and `MethodName` give the source location of a FlowTask method's scope. A lambda gets the name of its enclosing method; `Flow.Named` doesn't affect them, and there is no line number. The line where the scope waits is in `WaitingFile` and `WaitingLine`.
 - Inside a flow, `Flow.CurrentScopePath` gives the path of the current scope. It's handy to add to your logs.
 - `world.Clocks` lists the live Clocks. If it keeps growing, you are calling `Flow.CreateClock` inside a loop in a long-lived scope. Create the Clock inside a child FlowTask method instead.
+
+### Where a wait was created
+
+`WaitingFile` and `WaitingLine` give where what the node waits for was created. A wait or combinator node gives its own place; a scope gives the place of what it awaits directly (including a `NextFrame`, `DelayFrames` or `WaitForSeconds` without a node).
+
+- The places are recorded by `FlowTask.WaitForSeconds`, `DelayFrames`, `NextFrame`, `WaitUntil`, `Never`, `Race`, `WhenAll`, `Next` and `NextOrClosed` of `Signal<T>`, `EventSignal<T>` and `Subscription<T>`, `FlowProperty<T>.WaitUntil`, `Once<T>.Wait`, and `FlowHandle.Join`. The compiler fills their last optional parameters, `callerFilePath` and `callerLineNumber`, with the caller's file and line (`[CallerFilePath]`, `[CallerLineNumber]`).
+- The place is where the wait was created: `var t = FlowTask.WaitForSeconds(1);` awaited later with `await t;` shows the line that created it. `WithoutResult()` shows the place of the task it wraps.
+- Without a place, `WaitingFile` is null and `WaitingLine` is 0: a scope that awaits the call of a FlowTask method (a call records no place; the child scope's line shows where the child waits), a Task bridged with `FlowBridge`, a `Once<T>` awaited directly (`once.Wait()` records one), the wait that Unity's `WaitForDestroy()` returns (it is made inside the package), and a wait given an empty path (its line is 0 too).
+- `WaitingFile` is the path exactly as the compiler passed it (usually the absolute path on the machine that built it; `PathMap` changes it). The dump shows only the file name.
+
+When game code wraps a function that creates a wait, pass the caller's place on; otherwise the line inside the wrapper is shown.
+
+```csharp
+public static FlowTask Frames(int count,
+    [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0) =>
+    FlowTask.DelayFrames(count, null, callerFilePath, callerLineNumber);
+```
 
 ## Warnings
 

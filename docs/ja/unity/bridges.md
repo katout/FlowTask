@@ -184,9 +184,9 @@ FlowTask と UniTask は同じ PlayerLoop で動きます。変換の API と移
 
 `Window > FlowTask > Scope Tree` で開きます。Play Mode の間、既定の World と、`FlowWorldRegistry.Register(world)` で登録した World のスコープの木を 0.25 秒ごとに更新して表示します。
 
-- 各ノードの種類（scope、combinator、wait）、Clock、待っているものと待った時間（`waiting: Signal.Next for 2.3s` など）、キャンセル中のスコープ（橙色、理由付き）を表示します。上部には、生きているスコープの数と、Clock ごとの時刻、Pause、倍率が出ます。
+- 各ノードの種類（scope、combinator、wait）、Clock、待っているもの、それを作った場所、待った時間（`waiting: Signal.Next at Enemy.cs:42 for 2.3s` など）、キャンセル中のスコープ（橙色、理由付き）を表示します。上部には、生きているスコープの数と、Clock ごとの時刻、Pause、倍率が出ます。
 - ツールバーで、自動更新、テキスト表示（`FlowWorld.Dump()` の出力）、scope だけの表示、名前のフィルタ、ダンプのコピーを切り替えます。World が複数あれば、表示する World を選べます。
-- FlowTask メソッドのスコープの行をダブルクリックすると、そのメソッドを宣言したスクリプトを開きます。
+- 行をダブルクリックすると、待ちを作った行をスクリプトで開きます（`FlowScopeInfo.WaitingFile`、`WaitingLine`）。場所のない FlowTask メソッドのスコープの行（別の FlowTask メソッドの呼び出しを待つもの）は、そのメソッドを宣言したスクリプトを開きます。右クリックのメニューからは、どちらも開けます。
 - ゲームが止まったまま動かないとき（Pause の外し忘れ）は、テキスト表示の先頭の `Paused clocks:` を見ます。止まっている Clock ごとに Pause の数と持ち主が出ます（例：`Game: paused x2 by Main > PauseMenu, <outside any flow>`）。
 - World がないとき（Play Mode の外、再生中の再コンパイルの後など）は、その理由を表示します。
 

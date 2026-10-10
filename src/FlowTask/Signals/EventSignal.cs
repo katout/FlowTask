@@ -25,10 +25,11 @@ public sealed class EventSignal<T> : IDisposable, IScopeOwned
     public bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     /// <summary>Waits for the next event (an edge); to keep the events raised meanwhile, <see cref="Subscribe"/>.</summary>
-    public FlowTask<T> Next() => _signal.Next();
+    public FlowTask<T> Next([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0) => _signal.Next(callerFilePath, callerLineNumber);
 
     /// <summary>Like <see cref="Next"/>, but <c>(true, value)</c> for an event and <c>(false, default)</c> once the signal is closed.</summary>
-    public FlowTask<(bool Received, T Value)> NextOrClosed() => _signal.NextOrClosed();
+    public FlowTask<(bool Received, T Value)> NextOrClosed([CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = 0) =>
+        _signal.NextOrClosed(callerFilePath, callerLineNumber);
 
     /// <summary>Buffers the events from now on; see <see cref="Signal{T}.Subscribe"/>.</summary>
     public Subscription<T> Subscribe(BufferPolicy policy) => _signal.Subscribe(policy);
