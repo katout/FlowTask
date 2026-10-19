@@ -46,7 +46,7 @@ internal sealed class TickList
         if ((node.Flags & NodeFlags.InTickList) != 0) return;
         node.Flags |= NodeFlags.InTickList;
         node.TickSeq = _nextSeq++;
-        node.TickDeadline = false;
+        node.TickSlot = -1;
         node.TickPrev = _tail;
         node.TickNext = null;
         if (_tail != null) _tail.TickNext = node;
@@ -65,7 +65,6 @@ internal sealed class TickList
         if ((node.Flags & NodeFlags.InTickList) != 0) return;
         node.Flags |= NodeFlags.InTickList;
         node.TickSeq = _nextSeq++;
-        node.TickDeadline = true;
         var q = clock.TickQueue ??= new ClockQueue(clock);
         if (q.Index < 0) Register(q);
         var heap = frames ? q.Frames : q.Time;
@@ -86,7 +85,7 @@ internal sealed class TickList
     {
         if ((node.Flags & NodeFlags.InTickList) == 0) return;
         node.Flags &= ~NodeFlags.InTickList;
-        if (!node.TickDeadline)
+        if (node.TickSlot < 0)
         {
             if (node.TickPrev != null) node.TickPrev.TickNext = node.TickNext;
             else _head = node.TickNext;
@@ -119,6 +118,7 @@ internal sealed class TickList
     /// </summary>
     internal void Evaluate()
     {
+        if (_head == null && _queueCount == 0 && _carried.Count == 0) return;
         if (_conds.Length < _count)
         {
             var size = Math.Max(_count, _conds.Length * 2);
@@ -329,7 +329,7 @@ internal sealed class TickList
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     void Carry(FlowNode n, uint token)
     {
-        if (n.TickDeadline && n.TickBucket == null && n.Token == token && (n.Flags & NodeFlags.InTickList) != 0) _carried.Append(n);
+        if (n.TickSlot >= 0 && n.TickBucket == null && n.Token == token && (n.Flags & NodeFlags.InTickList) != 0) _carried.Append(n);
     }
 
     void AddDue(NodeRef r, long seq)

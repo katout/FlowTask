@@ -40,14 +40,13 @@ internal abstract class FlowNode
     NodeState _heldEnd;
     bool _heldFault;
 
-    // The World's tick list: a condition is in its list, a time or frame wait in a bucket of its clock (null while the
-    // walk of a Tick has taken it out). TickSeq orders the waits by when they joined.
+    // The World's tick list: a condition is in its list, a time or frame wait in a slot of a bucket of its clock (the
+    // bucket is null while the walk of a Tick has taken it out). TickSeq orders the waits by when they joined.
     internal FlowNode TickPrev;
     internal FlowNode TickNext;
     internal DeadlineBucket TickBucket;
     internal long TickSeq;
-    internal int TickSlot;
-    internal bool TickDeadline;
+    internal int TickSlot; // -1 for a condition
 
     CleanupStack _cleanups;
 
