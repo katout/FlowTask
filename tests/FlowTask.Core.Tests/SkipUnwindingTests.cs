@@ -243,7 +243,8 @@ public class SkipUnwindingTests
     /// <summary>Whether this runtime gives method bodies (JIT and Mono do; NativeAOT and IL2CPP do not): the check reads them.</summary>
     static bool CanReadMethodBodies()
     {
-        var sm = typeof(FinallyAroundAwait).GetNestedTypes(BindingFlags.NonPublic).First(t => typeof(System.Runtime.CompilerServices.IAsyncStateMachine).IsAssignableFrom(t));
+        var sm = typeof(FinallyAroundAwait).GetNestedTypes(BindingFlags.NonPublic).FirstOrDefault(t => typeof(System.Runtime.CompilerServices.IAsyncStateMachine).IsAssignableFrom(t));
+        if (sm == null) return false; // stripped (IL2CPP, NativeAOT)
         try
         {
             return sm.GetMethod("MoveNext", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)?.GetMethodBody() != null;
@@ -295,6 +296,8 @@ public class SkipUnwindingTests
     {
         AssertRejected(typeof(CatchAllAroundAwait), "Run");
         AssertRejected(typeof(CatchCancellationAroundAwait), "Run");
+        // catch (TEx) takes FlowCanceledException when TEx is Exception: the check cannot tell, so it rejects.
+        AssertRejected(typeof(CatchTypeParameterAroundAwait), "Run");
     }
 
     [Test]
@@ -386,6 +389,23 @@ public class SkipUnwindingTests
                 await FlowTask.NextFrame();
             }
             catch (OperationCanceledException)
+            {
+                s_counter++;
+                throw;
+            }
+        }
+    }
+
+    static class CatchTypeParameterAroundAwait
+    {
+        internal static async FlowTask Run<TEx>()
+            where TEx : Exception
+        {
+            try
+            {
+                await FlowTask.NextFrame();
+            }
+            catch (TEx)
             {
                 s_counter++;
                 throw;

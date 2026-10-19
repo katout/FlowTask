@@ -18,6 +18,9 @@ internal static class UnwindRegions
     /// </summary>
     internal static List<string> MethodsWithCleanupAroundAwait(Type type)
     {
+        // Where the runtime has no method bodies (NativeAOT, IL2CPP), or drops the state machine types of methods that
+        // nothing calls (trimming), reading the type alone would find nothing and pass: read a known method first.
+        if (!Probe.Readable) throw Unreadable(typeof(Probe));
         var found = new List<string>();
         // The state machines are nested in the type, or in a closure class ("<>c", "<>c__DisplayClass") nested there.
         // Iterative, with an explicit stack: closure classes nest as deep as the lambdas do.
@@ -62,6 +65,8 @@ internal static class UnwindRegions
 
         var il = body?.GetILAsByteArray() ?? throw Unreadable(stateMachine);
         var clauses = body.ExceptionHandlingClauses;
+        // MoveNext always has the compiler's outermost catch: no instructions or no region means the body was not read.
+        if (il.Length == 0 || clauses.Count == 0) throw Unreadable(stateMachine);
         if (clauses.Count < 2) return false;
         var awaits = FindAwaits(il, moveNext.Module, stateMachine) ?? throw Unreadable(stateMachine);
         if (awaits.Count == 0) return false;
@@ -87,9 +92,13 @@ internal static class UnwindRegions
         return false;
     }
 
-    /// <summary>A finally or fault block runs as FlowCanceledException passes; a filter may take it; a catch does when its type does.</summary>
+    /// <summary>
+    /// A finally or fault block runs as FlowCanceledException passes; a filter may take it; a catch does when its type
+    /// does, or may when its type is a type parameter.
+    /// </summary>
     static bool RunsOnUnwind(ExceptionHandlingClause clause) =>
-        clause.Flags != ExceptionHandlingClauseOptions.Clause || clause.CatchType == null || clause.CatchType.IsAssignableFrom(typeof(FlowCanceledException));
+        clause.Flags != ExceptionHandlingClauseOptions.Clause || clause.CatchType == null || clause.CatchType.IsGenericParameter
+        || clause.CatchType.IsAssignableFrom(typeof(FlowCanceledException));
 
     /// <summary>
     /// The offsets of the builder calls an await suspends with (AwaitOnCompleted, AwaitUnsafeOnCompleted); null when the
@@ -167,6 +176,47 @@ internal static class UnwindRegions
         while (start < typeName.Length && typeName[start] == '<') start++;
         var end = typeName.IndexOf('>', start);
         return end > start ? typeName[start..end] : typeName;
+    }
+
+    /// <summary>
+    /// A method the check must reject, read once: when its state machine, its body or its finally around the await is
+    /// missing, this runtime does not give what the check reads.
+    /// </summary>
+    static class Probe
+    {
+        internal static readonly bool Readable = Read();
+
+        internal static async FlowTask WithFinally()
+        {
+            try
+            {
+                await FlowTask.NextFrame();
+            }
+            finally
+            {
+                GC.KeepAlive(typeof(Probe));
+            }
+        }
+
+        static bool Read()
+        {
+            foreach (var t in typeof(Probe).GetNestedTypes(BindingFlags.NonPublic))
+            {
+                if (!typeof(IAsyncStateMachine).IsAssignableFrom(t)) continue;
+                var moveNext = t.GetMethod("MoveNext", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly);
+                if (moveNext == null) return false;
+                try
+                {
+                    return HasCleanupAroundAwait(moveNext, t);
+                }
+                catch (NotSupportedException)
+                {
+                    return false;
+                }
+            }
+
+            return false;
+        }
     }
 
     /// <summary>The IL opcodes by their bytes, filled once (a static constructor runs once, on one thread).</summary>
