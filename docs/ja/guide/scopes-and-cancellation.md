@@ -82,6 +82,33 @@ hud.Cancel();   // Hud unwinds: the finally runs, then the InputLock is disposed
 
 フローのコードの中で `handle.Cancel()` を呼ぶと、相手はその場で巻き戻り始めます。次の行に進む前に、相手の `finally` が（await を含むなら最初の await まで）走ります。フローの外（ゲームのコード、UI のコールバック）で取り消したときは、次の Tick か Flush の最初に巻き戻ります。それまで `Status` は `Running` のままです。別のスレッドから取り消したときと、自分自身を取り消したときの時期は [実行モデル](../advanced/execution-model.md) にあります。
 
+### 例外を投げずに終える：SkipUnwinding
+
+`world.SkipUnwinding(typeof(T))` に渡した型の async メソッド（その中のラムダとローカル関数を含む）は、その World で取り消されると、止まっている await で `FlowCanceledException` を投げずに終わります。大量のフローを一度に止める場面で、例外の費用（[性能とメモリ](../advanced/performance.md)）をなくすためのものです。既定では、どの型も巻き戻します。
+
+```csharp
+static class EnemyFlows
+{
+    // No finally, using, foreach or catch around an await: nothing to unwind.
+    public static async FlowTask Patrol(Enemy e)
+    {
+        Flow.AddCleanup(() => e.StopMoving());   // still runs when Patrol ends
+        while (true)
+        {
+            await e.MoveTo(e.NextPoint());
+            await FlowTask.WaitForSeconds(1);
+        }
+    }
+}
+
+world.SkipUnwinding(typeof(EnemyFlows));
+```
+
+- 終わり方は巻き戻すときと同じです。状態（`Canceled`、子の失敗を運ぶ取り消しなら `Faulted`）、`CancelCause`、報告、子が先に終わる順、`Flow.AddCleanup` と `Flow.Own` の後始末は変わりません。`Flow.NonCancelable` の await は終わるまで待ち、その後のコードは次の await まで走ります。
+- 変わるのは、await を囲む `finally`、`using`、`foreach`（Dispose する列挙子）と、キャンセルを受け取る `catch` が走らないことだけです。そうした区間を持つ型は渡さないでください。渡してよいかは、テストで `FlowAssert.CanSkipUnwinding(typeof(T))`（FlowTask.Testing）が確かめます。コンパイルされたメソッドの本体を読むので、JIT と Mono（Unity のエディタ）で動き、NativeAOT と IL2CPP では `NotSupportedException` を投げます。`SkipUnwinding` 自身は確かめません。
+- await を囲まない区間（中に await のない `try`/`finally` や `foreach`）と、キャンセルを受け取らない型の `catch` は問題ありません。キャンセルは await でしか起きないためです。
+- ジェネリック型は、型引数によらずすべての構築型に効きます。
+
 ## 同期の後始末：using、finally、AddCleanup、Own
 
 後始末は、キャンセルでも例外でも普通の return でも走ります。

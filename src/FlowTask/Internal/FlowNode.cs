@@ -402,6 +402,11 @@ internal abstract class FlowNode
     /// <summary>Unwinds this node; its children have been processed first (post-order).</summary>
     internal abstract void UnwindSelf();
 
+    /// <summary>State machines: a canceled scope resumes at an await that throws FlowCanceledException (or ends there, without unwinding).</summary>
+    internal virtual void ResumeToUnwind()
+    {
+    }
+
     /// <summary>Step 3 of a Tick: true when the wait is satisfied.</summary>
     internal virtual bool EvaluateTick() => false;
 
