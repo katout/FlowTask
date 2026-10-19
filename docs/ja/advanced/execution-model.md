@@ -185,7 +185,7 @@ var r = await FlowTask.Race(FlowTask.WaitForSeconds(30), FlowTask.WaitForSeconds
 // and the first branch began to wait first.
 ```
 
-1 回の大きな dt で 2 つの期限が過ぎると、Race の勝者は、その時間待ちを待ち始めた順で決まります。枝が時間待ちそのものなら、引数の順です。期限の順に並べ替えると、すべてのフローの実行順が変わり、費用も増えるので、そうしません。Unity と Godot の統合は、大きな dt をエンジンの上限で切り詰めて Tick します（[時間と Clock](../guide/time-and-clocks.md)）。
+1 回の大きな dt で 2 つの期限が過ぎると、Race の勝者は、その時間待ちを待ち始めた順で決まります。枝が時間待ちそのものなら、引数の順です。時間とフレームの待ちは、Clock ごとに期限の順に並べて持ち、期限の来たものだけを取り出して調べますが、調べる順と再開を予約する順は、待ち始めた順です。期限の順に再開すると、すべてのフローの実行順が変わるので、そうしません。Unity と Godot の統合は、大きな dt をエンジンの上限で切り詰めて Tick します（[時間と Clock](../guide/time-and-clocks.md)）。
 
 ## Race と WhenAll の順序
 

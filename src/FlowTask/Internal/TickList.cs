@@ -35,6 +35,7 @@ internal sealed class TickList
     int _dueIndex;
     bool _dueUnsorted;
     bool _evaluating;
+    bool _walked;
     long _walkSeq;
     long _walkEndSeq;
 
@@ -133,72 +134,91 @@ internal sealed class TickList
         }
 
         TakeDue();
+        if (condCount == 0 && _dueCount == 0) return;
         _walkEndSeq = _nextSeq;
         _evaluating = true;
-        var ci = 0;
+        _walked = false;
         try
         {
-            while (true)
-            {
-                if (_dueUnsorted) SortDue();
-                NodeRef r;
-                if (ci < condCount && (_dueIndex >= _dueCount || _condSeqs[ci] < _dueSeqs[_dueIndex]))
-                {
-                    r = _conds[ci];
-                    _conds[ci] = default;
-                    _walkSeq = _condSeqs[ci++];
-                }
-                else if (_dueIndex < _dueCount)
-                {
-                    r = _due[_dueIndex];
-                    _due[_dueIndex] = default;
-                    _walkSeq = _dueSeqs[_dueIndex++];
-                }
-                else
-                {
-                    break;
-                }
-
-                var n = r.Node;
-                if (!r.IsLive || (n.Flags & NodeFlags.InTickList) == 0 || (n.IsCancelConfirmed && !n.RunsCleanup))
-                {
-                    Carry(n, r.Token);
-                    continue;
-                }
-
-                var clock = n.TickClock;
-                if (clock.EffectivelyPaused)
-                {
-                    // A removed clock stays paused, so only the waits on paused clocks pay for this check.
-                    if (clock.LiveWorld == null) FailRemovedClockWait(n, clock);
-                    else Carry(n, r.Token);
-                    continue;
-                }
-
-                if (!n.EvaluateTick())
-                {
-                    Carry(n, r.Token);
-                    continue;
-                }
-
-                Remove(n);
-                n.OnTickSatisfied();
-            }
+            Walk(condCount);
         }
         finally
         {
             _evaluating = false;
-            // Only when a wait threw: the waits the walk did not reach stay in the list.
-            for (var i = _dueIndex; i < _dueCount; i++)
-            {
-                Carry(_due[i].Node, _due[i].Token);
-                _due[i] = default;
-            }
-
-            for (var i = ci; i < condCount; i++) _conds[i] = default;
+            if (!_walked) AbandonWalk(condCount);
             _dueCount = _dueIndex = 0;
             _dueUnsorted = false;
         }
+    }
+
+    void Walk(int condCount)
+    {
+        var conds = _conds;
+        var condSeqs = _condSeqs;
+        var ci = 0;
+        while (true)
+        {
+            if (_dueUnsorted) SortDue();
+            NodeRef r;
+            var di = _dueIndex;
+            if (di < _dueCount && (ci >= condCount || _dueSeqs[di] < condSeqs[ci]))
+            {
+                r = _due[di];
+                _due[di] = default;
+                _walkSeq = _dueSeqs[di];
+                _dueIndex = di + 1;
+            }
+            else if (ci < condCount)
+            {
+                r = conds[ci];
+                conds[ci] = default;
+                _walkSeq = condSeqs[ci++];
+            }
+            else
+            {
+                break;
+            }
+
+            var n = r.Node;
+            if (!r.IsLive || (n.Flags & NodeFlags.InTickList) == 0 || (n.IsCancelConfirmed && !n.RunsCleanup))
+            {
+                Carry(n, r.Token);
+                continue;
+            }
+
+            var clock = n.TickClock;
+            if (clock.EffectivelyPaused)
+            {
+                // A removed clock stays paused, so only the waits on paused clocks pay for this check.
+                if (clock.LiveWorld == null) FailRemovedClockWait(n, clock);
+                else Carry(n, r.Token);
+                continue;
+            }
+
+            if (!n.EvaluateTick())
+            {
+                Carry(n, r.Token);
+                continue;
+            }
+
+            Remove(n);
+            n.OnTickSatisfied();
+        }
+
+        _walked = true;
+    }
+
+    /// <summary>A wait threw out of the walk: the waits it did not reach stay in the list.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    void AbandonWalk(int condCount)
+    {
+        for (var i = _dueIndex; i < _dueCount; i++)
+        {
+            if (_due[i].Node is { } n) Carry(n, _due[i].Token);
+            _due[i] = default;
+        }
+
+        Array.Clear(_conds, 0, condCount);
     }
 
     /// <summary>
@@ -248,14 +268,32 @@ internal sealed class TickList
 
     void Take(DeadlineBucket b)
     {
-        var nodes = b.Nodes;
+        var need = _dueCount + b.Live;
+        if (need > _due.Length)
+        {
+            var size = Math.Max(need, _due.Length * 2);
+            Array.Resize(ref _due, size);
+            Array.Resize(ref _dueSeqs, size);
+        }
+
+        var due = _due;
+        var dueSeqs = _dueSeqs;
+        var count = _dueCount;
+        // A bucket is in the order its waits began: only its first wait can come before the waits taken so far.
+        var last = count > 0 ? dueSeqs[count - 1] : 0;
+        var slots = b.Slots;
         for (var i = 0; i < b.Count; i++)
         {
-            var n = nodes[i];
+            var n = slots[i].Node;
             if (n == null) continue;
+            slots[i].Node = null;
             n.TickBucket = null;
-            AddDue(new NodeRef(n), n.TickSeq);
+            due[count] = new NodeRef(n);
+            dueSeqs[count++] = n.TickSeq;
         }
+
+        if (count > _dueCount && dueSeqs[_dueCount] < last) _dueUnsorted = true;
+        _dueCount = count;
     }
 
     /// <summary>
@@ -275,10 +313,10 @@ internal sealed class TickList
         for (var i = 0; i < heap.Count; i++)
         {
             var b = heap.At(i);
-            var nodes = b.Nodes;
+            var slots = b.Slots;
             for (var s = 0; s < b.Count; s++)
             {
-                var n = nodes[s];
+                var n = slots[s].Node;
                 if (n == null || n.TickSeq <= _walkSeq || n.TickSeq >= _walkEndSeq) continue;
                 n.TickBucket = null;
                 b.RemoveAt(s);
@@ -367,7 +405,8 @@ internal sealed class ClockQueue
 internal sealed class DeadlineBucket
 {
     internal double Key;
-    internal FlowNode[] Nodes = new FlowNode[4];
+    // In a struct, so that a store needs no check of the array's type (FlowNode is not sealed).
+    internal NodeSlot[] Slots = new NodeSlot[4];
     internal int Count;
     internal int Live;
 
@@ -378,25 +417,30 @@ internal sealed class DeadlineBucket
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void Append(FlowNode node)
     {
-        if (Count == Nodes.Length) Array.Resize(ref Nodes, Count * 2);
+        if (Count == Slots.Length) Array.Resize(ref Slots, Count * 2);
         node.TickBucket = this;
         node.TickSlot = Count;
-        Nodes[Count++] = node;
+        Slots[Count++].Node = node;
         Live++;
     }
 
     internal void RemoveAt(int slot)
     {
-        Nodes[slot] = null;
+        Slots[slot].Node = null;
         if (--Live == 0) Clear();
     }
 
+    /// <summary>Every slot is empty: taking a wait out empties its slot, and so does removing it.</summary>
     internal void Clear()
     {
-        Array.Clear(Nodes, 0, Count);
         Count = 0;
         Live = 0;
     }
+}
+
+internal struct NodeSlot
+{
+    internal FlowNode Node;
 }
 
 /// <summary>A min-heap of buckets by target.</summary>

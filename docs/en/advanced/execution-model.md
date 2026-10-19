@@ -185,7 +185,7 @@ var r = await FlowTask.Race(FlowTask.WaitForSeconds(30), FlowTask.WaitForSeconds
 // and the first branch began to wait first.
 ```
 
-When one large dt passes two deadlines, the order in which those time waits began decides the winner of the Race. When the branches are the time waits themselves, that is the order of the arguments. Sorting by deadline would change the execution order of every flow and add cost, so FlowTask doesn't do that. The Unity and Godot integrations clamp a large dt to the engine's limit before they Tick ([Time and Clocks](../guide/time-and-clocks.md)).
+When one large dt passes two deadlines, the order in which those time waits began decides the winner of the Race. When the branches are the time waits themselves, that is the order of the arguments. FlowTask keeps the time and frame waits of each Clock in deadline order and checks only those whose deadline has come, but it checks them, and reserves their resumes, in the order they began. Resuming in deadline order would change the execution order of every flow, so FlowTask doesn't do that. The Unity and Godot integrations clamp a large dt to the engine's limit before they Tick ([Time and Clocks](../guide/time-and-clocks.md)).
 
 ## Order in Race and WhenAll
 

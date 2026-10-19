@@ -7,6 +7,10 @@ without a deprecation period; every break is listed here.
 
 ## [Unreleased]
 
+### Changed
+
+- A Tick no longer checks every time and frame wait: `WaitForSeconds`, `DelayFrames` and `NextFrame` are kept per Clock in deadline order, and only those whose deadline has come are checked, merged with the `WaitUntil` conditions in the order the waits began. Waits that aren't due cost almost nothing per Tick. The order of the checks and resumes, and the effect of a condition on the waits after it, are unchanged.
+
 ## [0.1.0-preview.1] - 2026-10-10
 
 First public release.
