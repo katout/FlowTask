@@ -9,7 +9,8 @@ namespace Katout.FlowTask.Benchmarks;
 /// <see cref="AwaitOverhead"/> plus the waits game code uses every frame (NextFrame, WaitForSeconds, signal and subscription
 /// waits, Race, WhenAll, completed values), the unwinding of state machines (a Race's losing branch, a canceled chain
 /// of scopes), and the shapes a change was measured on (FlowProperty.Set, a FromCallback bridge's callback, a Spawn
-/// joined every Tick from a deep scope, and a WhenAll of a list built every Tick), timed
+/// joined every Tick from a deep scope, a WhenAll of a list built every Tick, and a Tick with 10,000 waits that are
+/// not due), timed
 /// with a Stopwatch, best of 7
 /// rounds after warm-up. A scenario takes about a second, so two builds can be run alternately many times;
 /// BenchmarkDotNet's short job varies more between runs than the differences we look for.
@@ -58,6 +59,31 @@ internal static class HotPath
     static async FlowTask WaitForSecondsLoop()
     {
         while (true) await FlowTask.WaitForSeconds(0.001);
+    }
+
+    static async FlowTask IdleSeconds() => await FlowTask.WaitForSeconds(1e9);
+
+    static async FlowTask IdleFrames() => await FlowTask.DelayFrames(int.MaxValue);
+
+    /// <summary>
+    /// 10,000 flows that wait far ahead (half on time, half on frames), and <see cref="Flows"/> flows that wait a frame
+    /// in a loop or none: one Tick. The waits that are not due are what a deadline queue skips.
+    /// </summary>
+    static void IdleScenario(string name, bool withNextFrame)
+    {
+        using var w = new FlowWorld();
+        for (var i = 0; i < 5000; i++)
+        {
+            w.Run(IdleSeconds());
+            w.Run(IdleFrames());
+        }
+
+        if (withNextFrame)
+        {
+            for (var i = 0; i < Flows; i++) w.Run(NextFrameLoop());
+        }
+
+        Report(name, Best(2000, () => w.Tick(Bench.Dt)), "ns/tick");
     }
 
     static async FlowTask SignalLoop()
@@ -172,7 +198,7 @@ internal static class HotPath
         "Race SM loser x100", "Cancel depth=10",
         "FromResult x100", "Subscription.Next x100", "Race(sub loses) x100",
         "FlowProperty.Set x100", "Signal.Emit (no receiver) x100", "FromCallback x100", "Join depth=10 x100", "Join depth=50 x100",
-        "WhenAll(list 4) x100",
+        "WhenAll(list 4) x100", "Idle waits x10000", "NextFrame x100 + idle x10000",
     };
 
     /// <summary>
@@ -223,6 +249,8 @@ internal static class HotPath
             case "Join depth=10 x100": PerFlow(name, () => JoinNest(10), emit: false); break;
             case "Join depth=50 x100": PerFlow(name, () => JoinNest(50), emit: false); break;
             case "WhenAll(list 4) x100": PerFlow(name, WhenAllListLoop, emit: false); break;
+            case "Idle waits x10000": IdleScenario(name, withNextFrame: false); break;
+            case "NextFrame x100 + idle x10000": IdleScenario(name, withNextFrame: true); break;
             default: throw new ArgumentException("Unknown scenario: " + name);
         }
     }

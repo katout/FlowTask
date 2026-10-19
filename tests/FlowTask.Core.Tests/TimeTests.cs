@@ -589,6 +589,111 @@ public class TimeTests : FlowTestBase
     }
 
     [Test]
+    public void TimeWaitsOnANestedClockFollowTheScaleAndPauseChangesOfItsAncestors()
+    {
+        // A time wait keeps its target in the time of its own clock (#946): a change of scale or pause anywhere up the
+        // tree changes when the clock gets there, and the wait resumes in the first Tick in which it has, or in the
+        // first one after the pause when its target passed while its clock was paused. Most waits run on the
+        // UnscaledClock and wait on the leaf clock, so the pauses hold back only the waits; "parked one" runs on the
+        // leaf clock (the state machine waits itself). A step of 0.25 s keeps every time exact.
+        const double dt = 0.25;
+        var root = World.CreateClock("Root");
+        var mid = World.CreateClock("Mid", root);
+        var leaf = World.CreateClock("Leaf", mid);
+
+        string Now() => " t=" + leaf.Time.ToString(System.Globalization.CultureInfo.InvariantCulture) + " f=" + leaf.FrameCount;
+
+        async FlowTask Seconds(string name, double seconds)
+        {
+            await FlowTask.WaitForSeconds(seconds, leaf);
+            Log.Add(name + Now());
+        }
+
+        async FlowTask Frames(string name, int frames)
+        {
+            await FlowTask.DelayFrames(frames, leaf);
+            Log.Add(name + Now());
+        }
+
+        async FlowTask Parked(string name, double seconds)
+        {
+            await FlowTask.WaitForSeconds(seconds);
+            Log.Add(name + Now());
+        }
+
+        World.Run(Seconds("one", 1), World.UnscaledClock);
+        World.Run(Parked("parked one", 1), leaf);
+        World.Run(Frames("four frames", 4), World.UnscaledClock);
+        World.Run(Seconds("three eighths", 0.375), World.UnscaledClock);
+        root.TimeScale = 0.5;
+        Tick(1, dt);
+        AssertLog();
+        Assert.That(leaf.Time, Is.EqualTo(0.125));
+        mid.TimeScale = 2;
+        Tick(1, dt);
+        AssertLog("three eighths t=0.375 f=2");
+        Log.Clear();
+
+        var pause = root.Pause();
+        Tick(1, dt);
+        World.Run(Seconds("zero", 0), World.UnscaledClock); // due at once, on a paused clock
+        Tick(1, dt);
+        World.Run(Seconds("one eighth", 0.125), World.UnscaledClock); // due when the clock moves again
+        Tick(1, dt);
+        AssertLog();
+        Assert.That(leaf.Time, Is.EqualTo(0.375));
+        Assert.That(leaf.FrameCount, Is.EqualTo(2));
+        pause.Dispose();
+        leaf.TimeScale = 0.5; // 0.5 x 2 x 0.5
+        Tick(1, dt);
+        AssertLog("zero t=0.5 f=3", "one eighth t=0.5 f=3");
+        Log.Clear();
+
+        var midPause = mid.Pause();
+        Tick(1, dt);
+        AssertLog();
+        midPause.Dispose();
+        root.TimeScale = 4; // 4 x 2 x 0.5: the clock passes the targets of 1 s in one Tick
+        Tick(1, dt);
+        AssertLog("one t=1.5 f=4", "parked one t=1.5 f=4", "four frames t=1.5 f=4");
+    }
+
+    [Test]
+    public void TimeWaitsOnAClockWhoseParentStopsWithAZeroScaleResumeWhenItMovesAgain()
+    {
+        // A TimeScale of 0 stops the time but not the frames (#946): the time waits under it wait, the frame waits go on.
+        // Back to a scale above 0, a time wait resumes in the first Tick that reaches its target.
+        var parent = World.CreateClock("Parent");
+        var child = World.CreateClock("Child", parent);
+
+        async FlowTask Seconds(string name, double seconds)
+        {
+            await FlowTask.WaitForSeconds(seconds, child);
+            Log.Add(name + " at frame " + child.FrameCount);
+        }
+
+        async FlowTask Frames(string name, int frames)
+        {
+            await FlowTask.DelayFrames(frames, child);
+            Log.Add(name + " at frame " + child.FrameCount);
+        }
+
+        World.Run(Seconds("two steps", 0.5), World.UnscaledClock);
+        World.Run(Frames("three frames", 3), World.UnscaledClock);
+        Tick(1, 0.25);
+        parent.TimeScale = 0;
+        Tick(3, 0.25);
+        AssertLog("three frames at frame 3");
+        Assert.That(child.Time, Is.EqualTo(0.25));
+        parent.TimeScale = 1;
+        child.TimeScale = 0.5;
+        Tick(1, 0.25);
+        AssertLog("three frames at frame 3");
+        Tick(1, 0.25);
+        AssertLog("three frames at frame 3", "two steps at frame 6");
+    }
+
+    [Test]
     public void TimeScaleRejectsNonFiniteAndNegativeValues()
     {
         var game = World.CreateClock("Game");

@@ -395,6 +395,57 @@ public class ExecutionModelTests : FlowTestBase
     }
 
     [Test]
+    public void WaitsDueFromManyClocksAndKindsResumeInTheOrderTheyBeganEveryTick()
+    {
+        // The due waits of a Tick come from 5 buckets (frames of 4 clocks and time of one) plus a condition, and the
+        // waits of the buckets began interleaved: the walk merges them by the order they began, Tick after Tick (#946).
+        var game = World.CreateClock("Game");
+        var child = World.CreateClock("Child", game);
+        var order = new List<int>();
+        const int count = 18;
+
+        async FlowTask Loop(int i)
+        {
+            while (true)
+            {
+                switch (i % 6)
+                {
+                    case 0:
+                        await FlowTask.NextFrame();
+                        break;
+                    case 1:
+                        await FlowTask.NextFrame(World.UnscaledClock);
+                        break;
+                    case 2:
+                        await FlowTask.WaitForSeconds(Dt / 2);
+                        break;
+                    case 3:
+                        await FlowTask.NextFrame(game);
+                        break;
+                    case 4:
+                        await FlowTask.DelayFrames(1, child);
+                        break;
+                    default:
+                        var frame = World.DefaultClock.FrameCount;
+                        await FlowTask.WaitUntil(() => World.DefaultClock.FrameCount > frame);
+                        break;
+                }
+
+                order.Add(i);
+            }
+        }
+
+        for (var i = 0; i < count; i++) World.Run(Loop(i));
+        var expected = Enumerable.Range(0, count).ToArray();
+        for (var t = 0; t < 4; t++)
+        {
+            order.Clear();
+            Tick();
+            Assert.That(order, Is.EqualTo(expected), "Tick " + (t + 1));
+        }
+    }
+
+    [Test]
     public void ConditionThatChangesTheTimeScaleTakesEffectFromTheNextTick()
     {
         // Same result required after the deadline queue (#946). The clocks advance (step 2) before the waits are
@@ -436,6 +487,121 @@ public class ExecutionModelTests : FlowTestBase
         Assert.That(World.DefaultClock.Time, Is.EqualTo(2.5 * Dt).Within(1e-12));
         Tick();
         AssertLog("due next at frame 4");
+    }
+
+    [Test]
+    public void ConditionThatCancelsTheOwnerOfAClockFailsTheWaitsOnTheClock()
+    {
+        // Same result required before and after the deadline queue (#946). A condition cancels the scope that owns a
+        // clock while flows outside the scope wait on the clock, some due in this Tick and some not, before and after
+        // the condition. The scope ends, and removes its clock, after step 3: the waits due in this Tick resume, and
+        // step 3 of the next Tick fails the others.
+        CaptureExceptions();
+        Clock owned = null!;
+        FlowHandle owner = default;
+        var cancelNow = false;
+
+        async FlowTask Owner()
+        {
+            owned = Flow.CreateClock("owned", World.UnscaledClock);
+            await FlowTask.Never();
+        }
+
+        async FlowTask Waiter(string name, double seconds)
+        {
+            try
+            {
+                await FlowTask.WaitForSeconds(seconds, owned);
+                Log.Add(name + " resumed at frame " + World.UnscaledClock.FrameCount);
+            }
+            catch (FlowMisuseException)
+            {
+                Log.Add(name + " failed at frame " + World.UnscaledClock.FrameCount);
+            }
+        }
+
+        async FlowTask Canceler()
+        {
+            await FlowTask.WaitUntil(() =>
+            {
+                if (!cancelNow) return false;
+                Log.Add("cancel");
+                owner.Cancel();
+                return true;
+            });
+            Log.Add("canceler resumed");
+        }
+
+        owner = World.Run(Owner());
+        World.Run(Waiter("before due", 1.5 * Dt), World.UnscaledClock);
+        World.Run(Waiter("before", 100), World.UnscaledClock);
+        World.Run(Canceler(), World.UnscaledClock);
+        World.Run(Waiter("after due", 1.5 * Dt), World.UnscaledClock);
+        World.Run(Waiter("after", 100), World.UnscaledClock);
+        Tick();
+        AssertLog();
+        cancelNow = true;
+        Tick();
+        Log.Add("tick");
+        Tick();
+        AssertLog("cancel", "before due resumed at frame 2", "canceler resumed", "after due resumed at frame 2", "tick",
+            "before failed at frame 3", "after failed at frame 3");
+        Assert.That(Exceptions, Is.Empty);
+    }
+
+    [Test]
+    public void ConditionThatCancelsAFlowWhoseFinallyWaitsAgainResumesTheNewWaitAsBefore()
+    {
+        // Same result required before and after the deadline queue (#946). A condition cancels flows that wait on their
+        // own clock (the state machine waits itself) and began after the condition; their finally blocks wait again, for
+        // no time and for a frame. The unwinding runs after step 3, so the new waits begin after it and resume in the
+        // next Tick.
+        var cancelNow = false;
+        FlowHandle zero = default, frame = default;
+
+        async FlowTask Parked(string name, bool frameAgain)
+        {
+            try
+            {
+                await FlowTask.WaitForSeconds(100);
+            }
+            finally
+            {
+                Log.Add(name + " finally at frame " + World.DefaultClock.FrameCount);
+                if (frameAgain) await FlowTask.NextFrame();
+                else await FlowTask.WaitForSeconds(0);
+                Log.Add(name + " waited again at frame " + World.DefaultClock.FrameCount);
+            }
+        }
+
+        async FlowTask Canceler()
+        {
+            await FlowTask.WaitUntil(() =>
+            {
+                if (!cancelNow) return false;
+                Log.Add("cancel");
+                zero.Cancel();
+                frame.Cancel();
+                return true;
+            });
+            Log.Add("canceler resumed");
+        }
+
+        World.Run(Canceler());
+        zero = World.Run(Parked("zero", frameAgain: false));
+        frame = World.Run(Parked("frame", frameAgain: true));
+        Tick();
+        AssertLog();
+        cancelNow = true;
+        Tick();
+        Log.Add("tick");
+        Tick();
+        Log.Add("tick");
+        Tick();
+        AssertLog("cancel", "zero finally at frame 2", "frame finally at frame 2", "canceler resumed", "tick",
+            "zero waited again at frame 3", "frame waited again at frame 3", "tick");
+        Assert.That(zero.Status, Is.EqualTo(FlowStatus.Canceled));
+        Assert.That(frame.Status, Is.EqualTo(FlowStatus.Canceled));
     }
 
     [Test]

@@ -233,6 +233,10 @@ FlowTask's builder doesn't capture the ExecutionContext, and flows run in the Ex
 
 **Large dt and time comparison**: time waits satisfied in the same Tick resume in the order they started waiting. `WaitForSeconds` doesn't compare with a tolerance. Both are to avoid changing the execution order ([Execution model](execution-model.md)).
 
+**Time and frame waits in deadline order**: `WaitForSeconds`, `DelayFrames` and `NextFrame` are kept per Clock in deadline order (the Clock's `Time`, or its `FrameCount` for frames), and a Tick takes out and checks only those whose deadline has come. Waits whose deadline hasn't come cost almost nothing per Tick, however many there are. The waits taken out are merged with the `WaitUntil` conditions, which are checked every Tick, by a number given in the order the waits began, and each is looked at again as before (whether it has ended, been canceled, or its Clock is paused) before it is checked. The order of the checks, and the way an earlier condition affects the waits after it (a Pause or a cancel), are the same as when every wait was checked. A wait passed over (its Clock was paused, for example) is still past its deadline, so the next Tick takes it out again.
+
+**Deadlines in the Clock's time**: a deadline is kept in the time of the wait's Clock, and isn't recomputed when the scale, the Pause or a parent Clock changes. Only the "advance time" step of a Tick moves a Clock's time; the scale and the Pause only change how it moves. Kept in the Clock's time, a deadline needs no reordering when they change, and the comparison is the same `Time >= deadline` as before. Recomputing the deadlines on each change would look at every wait on each change, which defeats the purpose of saving the cost.
+
 ## The synchronous completion limit
 
 When one scope completes more than 1,000,000 awaits synchronously in one top-level pass (one Tick, Flush, or Run called from outside), FlowTask treats it as an infinite loop and ends the scope.

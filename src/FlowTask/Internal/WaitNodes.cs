@@ -67,8 +67,9 @@ internal sealed class WaitForSecondsNode : ClockWait
 
     protected override void OnStart()
     {
-        _target = EffectiveClock.Time + _seconds;
-        World.TickList.Add(this);
+        var clock = EffectiveClock;
+        _target = clock.Time + _seconds;
+        World.TickList.AddDeadline(this, clock, frames: false, _target);
     }
 
     internal override bool EvaluateTick() => TickClock.Time >= _target;
@@ -118,8 +119,9 @@ internal sealed class DelayFramesNode : ClockWait
             return;
         }
 
-        _target = EffectiveClock.FrameCount + _frameCount;
-        World.TickList.Add(this);
+        var clock = EffectiveClock;
+        _target = clock.FrameCount + _frameCount;
+        World.TickList.AddDeadline(this, clock, frames: true, _target);
     }
 
     internal override bool EvaluateTick() => TickClock.FrameCount >= _target;

@@ -256,6 +256,38 @@ public class AllocationTests : FlowTestBase
     }
 
     /// <summary>
+    /// The due waits of a Tick from several clocks and kinds began interleaved, so the walk merges them by the order they
+    /// began every Tick (#946): the merge reuses its arrays.
+    /// </summary>
+    [Test]
+    public void DueWaitsFromSeveralClocksAndKinds()
+    {
+        var game = World.CreateClock("Game");
+
+        async FlowTask Loop(int i)
+        {
+            while (true)
+            {
+                switch (i % 3)
+                {
+                    case 0:
+                        await FlowTask.NextFrame();
+                        break;
+                    case 1:
+                        await FlowTask.NextFrame(World.UnscaledClock);
+                        break;
+                    default:
+                        await FlowTask.WaitForSeconds(0.001, game);
+                        break;
+                }
+            }
+        }
+
+        for (var i = 0; i < 64; i++) World.Run(Loop(i));
+        AssertSteadyStateAllocationFree(() => Tick(300));
+    }
+
+    /// <summary>
     /// Lifetime handles disposed early inside one long-lived scope (the loop of an enemy AI or of a retry dialog)
     /// must not accumulate in the scope's cleanup list: both LIFO and out-of-order disposal stay bounded and
     /// allocation-free. A round takes 20,000 handles: a list that kept the released ones would double its array past
