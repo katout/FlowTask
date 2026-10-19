@@ -55,6 +55,7 @@ FlowTask の API 名と、このドキュメントで使う日本語の用語を
 | 握りつぶし | 受け取ったキャンセルを投げ直さずに続けること。そのスコープが return すると報告され、スコープはキャンセルで終わります | `catch (OperationCanceledException) { }` |
 | 後始末の await | 取り消されたスコープの `catch` と `finally` の await。最後まで走り、周り（親、Race、WhenAll）はその終わりを待ちます | UniTask の `finally` の await |
 | `Flow.NonCancelable` | 包んだ await に、祖先のキャンセルを届けない印。キャンセルの前に入った `finally` の await を最後まで走らせます | Kotlin の `withContext(NonCancellable)` |
+| `FlowWorld.SkipUnwinding` | 渡した型の async メソッドを、取り消しで例外を投げずに終える登録。await を囲む `finally` や `using` を持たない型だけに使います | — |
 | 未処理の例外 | どこでも捕まえられずにルートに届いた例外。途中のスコープは `Faulted` で終わり、例外は `FlowWorld.OnUnhandledException` に報告されます | `AppDomain.UnhandledException`、Task の Faulted |
 | `FlowExceptionKind` | `OnUnhandledException` への報告の種類。`Unhandled`（未処理の例外）と、報告だけの `Cleanup`（後始末の例外）、`SwallowedCancellation`（握りつぶし）、`Undelivered`（受け手に届けられなかった例外） | — |
 | 受け手、待ち手 | 例外や値を受け取る側（await しているスコープ、合成、ハンドル） | — |

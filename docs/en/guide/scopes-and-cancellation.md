@@ -82,6 +82,33 @@ Unwinding proceeds in the same order as returning up a call stack.
 
 When you call `handle.Cancel()` from flow code, the target starts unwinding immediately. Before you move on to the next line, the target's `finally` runs (up to its first await, if it has one). When you cancel from outside a flow (game code, a UI callback), the target unwinds at the start of the next Tick or Flush. Until then, `Status` stays `Running`. The timing when you cancel from another thread, or cancel yourself, is covered in [Execution model](../advanced/execution-model.md).
 
+### Ending without an exception: SkipUnwinding
+
+The async methods of a type passed to `world.SkipUnwinding(typeof(T))` (including its lambdas and local functions), when canceled in that World, end at the await where they are suspended without throwing `FlowCanceledException`. It removes the cost of the exception ([Performance and memory](../advanced/performance.md)) where many flows stop at once. By default, every type unwinds.
+
+```csharp
+static class EnemyFlows
+{
+    // No finally, using, foreach or catch around an await: nothing to unwind.
+    public static async FlowTask Patrol(Enemy e)
+    {
+        Flow.AddCleanup(() => e.StopMoving());   // still runs when Patrol ends
+        while (true)
+        {
+            await e.MoveTo(e.NextPoint());
+            await FlowTask.WaitForSeconds(1);
+        }
+    }
+}
+
+world.SkipUnwinding(typeof(EnemyFlows));
+```
+
+- They end the same way as when unwinding: the status (`Canceled`, or `Faulted` for a cancellation that carries a child's failure), the `CancelCause`, the reports, children ending first, and the cleanup of `Flow.AddCleanup` and `Flow.Own` are unchanged. A `Flow.NonCancelable` await is waited for, and the code after it runs up to the next await.
+- The only difference is that a `finally`, `using`, `foreach` (over an enumerator that is disposed), or a `catch` that takes the cancellation, around an await, doesn't run. Don't pass types that have one. A test checks it with `FlowAssert.CanSkipUnwinding(typeof(T))` (FlowTask.Testing). It reads the compiled method bodies, so it works on the JIT and Mono (the Unity editor), and throws `NotSupportedException` on NativeAOT and IL2CPP. `SkipUnwinding` itself doesn't check.
+- Blocks that don't contain an await (a `try`/`finally` or `foreach` with no await inside) and a `catch` of a type that doesn't take the cancellation are fine, since a cancellation only happens at an await.
+- For a generic type, it applies to all its constructions, whatever the type arguments.
+
 ## Synchronous cleanup: using, finally, AddCleanup, Own
 
 Cleanup runs whether the scope ends by cancellation, by an exception, or by an ordinary return.

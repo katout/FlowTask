@@ -280,7 +280,8 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
     }
 
     /// <summary>The method's type was passed to FlowWorld.SkipUnwinding: canceled, it ends at its await without unwinding.</summary>
-    bool SkipsUnwinding => World.SkipsUnwinding(SourceType);
+    // The set first: without SkipUnwinding, a cancellation costs one field read more.
+    bool SkipsUnwinding => World.SkipUnwindingTypes is { } types && SourceType is { } declaring && types.Contains(declaring);
 
     /// <summary>
     /// Whether the await the canceled scope is suspended at throws FlowCanceledException when it resumes: all but a

@@ -15,8 +15,8 @@ public sealed class FlowWorld : IDisposable
     bool _disposing;
     bool _disposed;
 
-    // The types passed to SkipUnwinding (generic definitions); null until the first.
-    HashSet<Type> _skipUnwinding;
+    /// <summary>The types passed to SkipUnwinding (generic definitions); null until the first.</summary>
+    internal HashSet<Type> SkipUnwindingTypes;
 
     internal FlowNode CurrentScope;
     internal int ExecutionDepth;
@@ -128,11 +128,8 @@ public sealed class FlowWorld : IDisposable
         if (type == null) throw new ArgumentNullException(nameof(type));
         CheckThread();
         CheckNotDisposed();
-        (_skipUnwinding ??= new HashSet<Type>()).Add(type.IsGenericType ? type.GetGenericTypeDefinition() : type);
+        (SkipUnwindingTypes ??= new HashSet<Type>()).Add(type.IsGenericType ? type.GetGenericTypeDefinition() : type);
     }
-
-    /// <summary>True when the state machines declared in <paramref name="declaringType"/> end without unwinding (SkipUnwinding).</summary>
-    internal bool SkipsUnwinding(Type declaringType) => _skipUnwinding != null && declaringType != null && _skipUnwinding.Contains(declaringType);
 
     /// <summary>
     /// Starts <paramref name="task"/> as a child of the root scope: it runs until it ends, however the caller ends, and

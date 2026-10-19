@@ -55,6 +55,7 @@ The full picture is in [Handling failures](../guide/failures.md).
 | Swallowing | Continuing without rethrowing a received cancellation. Reported when the scope returns, and the scope ends as canceled | `catch (OperationCanceledException) { }` |
 | Awaits in cleanup | Awaits in `catch` and `finally` of a canceled scope. They run to the end, and the surroundings (parent, Race, WhenAll) wait for them | Awaits in `finally` in UniTask |
 | `Flow.NonCancelable` | A marker that keeps ancestors' cancellation from reaching the wrapped await. Lets an await in a `finally` entered before the cancellation run to the end | Kotlin's `withContext(NonCancellable)` |
+| `FlowWorld.SkipUnwinding` | Registers a type whose async methods end without an exception when canceled. Only for types with no `finally` or `using` around an await | — |
 | Unhandled exception | An exception that nothing caught and that reached the root. The scopes along the way end as `Faulted`, and the exception is reported to `FlowWorld.OnUnhandledException` | `AppDomain.UnhandledException`, Task's `Faulted` status |
 | `FlowExceptionKind` | The kind of a report to `OnUnhandledException`: `Unhandled` (an unhandled exception), and the report-only `Cleanup` (an exception in cleanup), `SwallowedCancellation` (swallowing), and `Undelivered` (an exception that couldn't be delivered to its receiver) | — |
 | Receiver, waiter | The side that receives an exception or value (the awaiting scope, a combinator, a handle) | — |
