@@ -229,7 +229,7 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
         SiteFile = wait.SiteFile;
         SiteLine = wait.SiteLine;
         Flags |= NodeFlags.ParkedWait;
-        World.TickList.Add(this);
+        World.TickList.AddDeadline(this, Clock, _parkKind == ParkKind.Frames, _parkTarget);
     }
 
     /// <summary>

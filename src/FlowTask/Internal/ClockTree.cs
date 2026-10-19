@@ -66,6 +66,7 @@ internal sealed class ClockTree
         clock.LiveWorld = null;
         clock.DeltaTime = 0;
         clock.EffectivelyPaused = true;
+        _world.TickList.OnClockRemoved(clock);
         _resumes.OnPauseReleased();
     }
 

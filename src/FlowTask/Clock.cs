@@ -81,6 +81,9 @@ public sealed class Clock
     /// <summary>The World a task may run on this clock in; null once a scope clock is removed.</summary>
     internal FlowWorld LiveWorld;
 
+    /// <summary>The time and frame waits on this clock (TickList); null until the first.</summary>
+    internal ClockQueue TickQueue;
+
     /// <summary>Flow.CreateClock: the owner scope's name. Null for the World's clocks.</summary>
     internal string OwnerName;
 
