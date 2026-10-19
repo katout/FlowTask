@@ -2,7 +2,7 @@ namespace Katout.FlowTask.Internal;
 
 /// <summary>
 /// Step 3 of a Tick: the waits that the Tick evaluates (time, frames, conditions), in the order they began. Conditions
-/// (WaitUntil) are in a list evaluated every Tick. Time and frame waits are in buckets per clock and target: at the head
+/// (WaitUntil) are in one bucket evaluated every Tick. Time and frame waits are in buckets per clock and target: at the head
 /// of a Tick only the due ones are taken out, and the walk merges them with the conditions by the order they began (a
 /// number each wait takes when it joins), so the order, and the effect of a condition on the waits after it, are those of
 /// a walk of every wait.
@@ -10,9 +10,7 @@ namespace Katout.FlowTask.Internal;
 internal sealed class TickList
 {
     // The conditions, in the order they began.
-    FlowNode _head;
-    FlowNode _tail;
-    int _count;
+    readonly DeadlineBucket _conditions = new();
 
     // The order in which the waits began: every wait that joins takes the next number.
     long _nextSeq = 1;
@@ -46,13 +44,7 @@ internal sealed class TickList
         if ((node.Flags & NodeFlags.InTickList) != 0) return;
         node.Flags |= NodeFlags.InTickList;
         node.TickSeq = _nextSeq++;
-        node.TickSlot = -1;
-        node.TickPrev = _tail;
-        node.TickNext = null;
-        if (_tail != null) _tail.TickNext = node;
-        else _head = node;
-        _tail = node;
-        _count++;
+        _conditions.Append(node);
     }
 
     /// <summary>
@@ -85,30 +77,20 @@ internal sealed class TickList
     {
         if ((node.Flags & NodeFlags.InTickList) == 0) return;
         node.Flags &= ~NodeFlags.InTickList;
-        if (node.TickSlot < 0)
-        {
-            if (node.TickPrev != null) node.TickPrev.TickNext = node.TickNext;
-            else _head = node.TickNext;
-            if (node.TickNext != null) node.TickNext.TickPrev = node.TickPrev;
-            else _tail = node.TickPrev;
-            node.TickPrev = node.TickNext = null;
-            _count--;
-            return;
-        }
-
         var b = node.TickBucket;
-        // Null: taken out for the walk of this Evaluate, which skips it at its turn.
+        // Null: a time or frame wait taken out for the walk of this Evaluate, which skips it at its turn.
         if (b == null) return;
         node.TickBucket = null;
         b.RemoveAt(node.TickSlot);
+        if (b == _conditions) return;
         if (b.Live == 0 && b.Heap != null)
         {
             b.Heap.Remove(b);
             ReturnBucket(b);
         }
 
-        // A state machine can wait again at once (in its catch or finally, when a condition cancels it), and a walk of
-        // every wait evaluates the new wait at the old place: the walk keeps that place.
+        // Should a state machine wait again within the walk, a walk of every wait would evaluate the new wait at the old
+        // place: the walk keeps that place. (A cancel by a condition unwinds after step 3, so this is only a safeguard.)
         if (_evaluating && node.IsStateMachine && node.TickSeq > _walkSeq && node.TickSeq < _walkEndSeq) AddDue(new NodeRef(node), node.TickSeq);
     }
 
@@ -118,20 +100,8 @@ internal sealed class TickList
     /// </summary>
     internal void Evaluate()
     {
-        if (_head == null && _queueCount == 0 && _carried.Count == 0) return;
-        if (_conds.Length < _count)
-        {
-            var size = Math.Max(_count, _conds.Length * 2);
-            _conds = new NodeRef[size];
-            _condSeqs = new long[size];
-        }
-
-        var condCount = 0;
-        for (var n = _head; n != null; n = n.TickNext)
-        {
-            _conds[condCount] = new NodeRef(n);
-            _condSeqs[condCount++] = n.TickSeq;
-        }
+        if (_conditions.Count == 0 && _queueCount == 0 && _carried.Count == 0) return;
+        var condCount = CopyConditions();
 
         TakeDue();
         if (condCount == 0 && _dueCount == 0) return;
@@ -149,6 +119,40 @@ internal sealed class TickList
             _dueCount = _dueIndex = 0;
             _dueUnsorted = false;
         }
+    }
+
+    /// <summary>Copies the conditions for the walk, and closes the holes the removed ones left.</summary>
+    int CopyConditions()
+    {
+        var c = _conditions;
+        if (_conds.Length < c.Live)
+        {
+            var size = Math.Max(c.Live, _conds.Length * 2);
+            _conds = new NodeRef[size];
+            _condSeqs = new long[size];
+        }
+
+        var conds = _conds;
+        var condSeqs = _condSeqs;
+        var slots = c.Slots;
+        var w = 0;
+        for (var i = 0; i < c.Count; i++)
+        {
+            var n = slots[i].Node;
+            if (n == null) continue;
+            if (w != i)
+            {
+                slots[w].Node = n;
+                slots[i].Node = null;
+                n.TickSlot = w;
+            }
+
+            conds[w] = new NodeRef(n);
+            condSeqs[w++] = n.TickSeq;
+        }
+
+        c.Count = w;
+        return w;
     }
 
     void Walk(int condCount)
@@ -297,8 +301,8 @@ internal sealed class TickList
     }
 
     /// <summary>
-    /// A condition removed a scope clock (it ended the scope): the waits on the clock after the current one fail at their
-    /// turn, as they do in a walk of every wait.
+    /// A scope clock removed within the walk: the waits on the clock after the current one fail at their turn, as in a walk
+    /// of every wait. (A scope a condition cancels ends after step 3, so this is only a safeguard.)
     /// </summary>
     internal void OnClockRemoved(Clock clock)
     {
@@ -329,7 +333,7 @@ internal sealed class TickList
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     void Carry(FlowNode n, uint token)
     {
-        if (n.TickSlot >= 0 && n.TickBucket == null && n.Token == token && (n.Flags & NodeFlags.InTickList) != 0) _carried.Append(n);
+        if (n.TickBucket == null && n.Token == token && (n.Flags & NodeFlags.InTickList) != 0) _carried.Append(n);
     }
 
     void AddDue(NodeRef r, long seq)
@@ -401,7 +405,10 @@ internal sealed class ClockQueue
     internal ClockQueue(Clock clock) => Clock = clock;
 }
 
-/// <summary>The waits of one clock with the same target, in the order they began. A removed wait leaves a hole.</summary>
+/// <summary>
+/// Waits in the order they began: those of one clock with the same target, the conditions, or the due waits a walk
+/// skipped. A removed wait leaves a hole.
+/// </summary>
 internal sealed class DeadlineBucket
 {
     internal double Key;
@@ -410,7 +417,7 @@ internal sealed class DeadlineBucket
     internal int Count;
     internal int Live;
 
-    /// <summary>The heap the bucket is in; null in the pool and for the tick list's skipped waits.</summary>
+    /// <summary>The heap the bucket is in; null in the pool, and for the conditions and the skipped waits.</summary>
     internal BucketHeap Heap;
     internal int HeapIndex = -1;
 
