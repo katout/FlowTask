@@ -395,6 +395,57 @@ public class ExecutionModelTests : FlowTestBase
     }
 
     [Test]
+    public void WaitsDueFromManyClocksAndKindsResumeInTheOrderTheyBeganEveryTick()
+    {
+        // The due waits of a Tick come from 5 buckets (frames of 4 clocks and time of one) plus a condition, and the
+        // waits of the buckets began interleaved: the walk merges them by the order they began, Tick after Tick (#946).
+        var game = World.CreateClock("Game");
+        var child = World.CreateClock("Child", game);
+        var order = new List<int>();
+        const int count = 18;
+
+        async FlowTask Loop(int i)
+        {
+            while (true)
+            {
+                switch (i % 6)
+                {
+                    case 0:
+                        await FlowTask.NextFrame();
+                        break;
+                    case 1:
+                        await FlowTask.NextFrame(World.UnscaledClock);
+                        break;
+                    case 2:
+                        await FlowTask.WaitForSeconds(Dt / 2);
+                        break;
+                    case 3:
+                        await FlowTask.NextFrame(game);
+                        break;
+                    case 4:
+                        await FlowTask.DelayFrames(1, child);
+                        break;
+                    default:
+                        var frame = World.DefaultClock.FrameCount;
+                        await FlowTask.WaitUntil(() => World.DefaultClock.FrameCount > frame);
+                        break;
+                }
+
+                order.Add(i);
+            }
+        }
+
+        for (var i = 0; i < count; i++) World.Run(Loop(i));
+        var expected = Enumerable.Range(0, count).ToArray();
+        for (var t = 0; t < 4; t++)
+        {
+            order.Clear();
+            Tick();
+            Assert.That(order, Is.EqualTo(expected), "Tick " + (t + 1));
+        }
+    }
+
+    [Test]
     public void ConditionThatChangesTheTimeScaleTakesEffectFromTheNextTick()
     {
         // Same result required after the deadline queue (#946). The clocks advance (step 2) before the waits are

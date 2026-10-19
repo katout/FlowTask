@@ -32,6 +32,12 @@ internal sealed class TickList
     int _dueCount;
     int _dueIndex;
     bool _dueUnsorted;
+    // Where the due waits break the order they began: each part between two breaks is in order (a bucket is), and the
+    // walk merges the parts. The spare arrays take a merge pass; they hold no node between merges.
+    int[] _breaks = new int[8];
+    int _breakCount;
+    NodeRef[] _spare = new NodeRef[16];
+    long[] _spareSeqs = new long[16];
     bool _evaluating;
     bool _walked;
     long _walkSeq;
@@ -122,7 +128,7 @@ internal sealed class TickList
         {
             _evaluating = false;
             if (!_walked) AbandonWalk(condCount);
-            _dueCount = _dueIndex = 0;
+            _dueCount = _dueIndex = _breakCount = 0;
             _dueUnsorted = false;
         }
     }
@@ -237,7 +243,7 @@ internal sealed class TickList
     /// </summary>
     void TakeDue()
     {
-        _dueCount = _dueIndex = 0;
+        _dueCount = _dueIndex = _breakCount = 0;
         _dueUnsorted = false;
         if (_carried.Count > 0)
         {
@@ -302,7 +308,7 @@ internal sealed class TickList
             dueSeqs[count++] = n.TickSeq;
         }
 
-        if (count > _dueCount && dueSeqs[_dueCount] < last) _dueUnsorted = true;
+        if (count > _dueCount && dueSeqs[_dueCount] < last) AddBreak(_dueCount);
         _dueCount = count;
     }
 
@@ -350,16 +356,89 @@ internal sealed class TickList
             Array.Resize(ref _dueSeqs, _dueCount * 2);
         }
 
-        if (_dueCount > _dueIndex && seq < _dueSeqs[_dueCount - 1]) _dueUnsorted = true;
+        if (_dueCount > _dueIndex && seq < _dueSeqs[_dueCount - 1]) AddBreak(_dueCount);
         _due[_dueCount] = r;
         _dueSeqs[_dueCount++] = seq;
     }
 
+    void AddBreak(int at)
+    {
+        if (_breakCount == _breaks.Length) Array.Resize(ref _breaks, _breakCount * 2);
+        _breaks[_breakCount++] = at;
+        _dueUnsorted = true;
+    }
+
+    /// <summary>
+    /// Sorts the due waits not walked yet by the order they began. The parts between the breaks are each in order, so it
+    /// merges them in pairs (k parts of n waits: n log k), in the spare arrays and back.
+    /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     void SortDue()
     {
-        Array.Sort<long, NodeRef>(_dueSeqs, _due, _dueIndex, _dueCount - _dueIndex);
         _dueUnsorted = false;
+        // The parts: from the first wait not walked, and from each break after it. (The breaks are in rising order.)
+        var lo = _dueIndex;
+        var first = 0;
+        while (first < _breakCount && _breaks[first] <= lo) first++;
+        var parts = _breakCount - first + 1;
+        _breakCount = 0;
+        if (parts == 1) return;
+        if (_breaks.Length < parts + 1) Array.Resize(ref _breaks, parts + 1);
+        var starts = _breaks;
+        Array.Copy(starts, first, starts, 1, parts - 1);
+        starts[0] = lo;
+        starts[parts] = _dueCount;
+        if (_spare.Length < _due.Length)
+        {
+            _spare = new NodeRef[_due.Length];
+            _spareSeqs = new long[_due.Length];
+        }
+
+        while (parts > 1)
+        {
+            var src = _due;
+            var srcSeqs = _dueSeqs;
+            var dst = _spare;
+            var dstSeqs = _spareSeqs;
+            var w = 0;
+            for (var p = 0; p < parts; p += 2)
+            {
+                var a = starts[p];
+                var mid = starts[Math.Min(p + 1, parts)];
+                var end = starts[Math.Min(p + 2, parts)];
+                starts[w++] = a;
+                var b = mid;
+                var o = a;
+                while (a < mid && b < end)
+                {
+                    var i = srcSeqs[a] < srcSeqs[b] ? a++ : b++;
+                    dst[o] = src[i];
+                    dstSeqs[o++] = srcSeqs[i];
+                    src[i] = default;
+                }
+
+                for (; a < mid; a++, o++)
+                {
+                    dst[o] = src[a];
+                    dstSeqs[o] = srcSeqs[a];
+                    src[a] = default;
+                }
+
+                for (; b < end; b++, o++)
+                {
+                    dst[o] = src[b];
+                    dstSeqs[o] = srcSeqs[b];
+                    src[b] = default;
+                }
+            }
+
+            starts[w] = starts[parts];
+            parts = w;
+            _due = dst;
+            _dueSeqs = dstSeqs;
+            _spare = src;
+            _spareSeqs = srcSeqs;
+        }
     }
 
     void Register(ClockQueue q)
