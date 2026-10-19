@@ -234,6 +234,210 @@ public class ExecutionModelTests : FlowTestBase
         AssertLog("winner 0");
     }
 
+    // The four tests below pin how step 3 of a Tick evaluates the waits today (FlowTask 0.1.0-preview.1). A change to how
+    // step 3 finds the waits to evaluate (a deadline queue: ai_game_engine #946) must give the same results.
+
+    [Test]
+    public void ConditionThatPausesTheClockStopsLaterTimeWaitsInTheSameTick()
+    {
+        // Same result required after the deadline queue (#946). Both deadlines on DefaultClock pass in the second Tick, but
+        // the condition, evaluated between the two time waits, pauses DefaultClock: the wait that began before it resumes,
+        // the one that began after it is skipped in this Tick and resumes in the first Tick after the pause is released.
+        // The flows run on the UnscaledClock, so the pause holds back only the wait (a flow on a paused clock does not
+        // resume either, which would hide the difference).
+        ScopedHandle pause = default;
+        var pauseNow = false;
+
+        async FlowTask Timed(string name)
+        {
+            await FlowTask.WaitForSeconds(1.5 * Dt, World.DefaultClock);
+            Log.Add(name + " at frame " + World.DefaultClock.FrameCount);
+        }
+
+        async FlowTask Pauser()
+        {
+            await FlowTask.WaitUntil(() =>
+            {
+                if (!pauseNow) return false;
+                pause = World.DefaultClock.Pause();
+                Log.Add("pause");
+                return true;
+            });
+            Log.Add("pauser resumed");
+        }
+
+        World.Run(Timed("before"), World.UnscaledClock);
+        World.Run(Pauser(), World.UnscaledClock);
+        var after = World.Run(Timed("after"), World.UnscaledClock);
+        Tick();
+        AssertLog();
+        pauseNow = true;
+        Tick();
+        AssertLog("pause", "before at frame 2", "pauser resumed");
+        Log.Clear();
+        Tick(3);
+        AssertLog();
+        Assert.That(after.Status, Is.EqualTo(FlowStatus.Running));
+        Assert.That(World.Diagnostics.Walk().Single(s => s.Name == "Timed").Waiting,
+            Does.StartWith("WaitForSeconds(").And.Contain(" on Default"), World.Dump());
+        pause.Dispose();
+        Tick();
+        AssertLog("after at frame 3");
+        Assert.That(after.Status, Is.EqualTo(FlowStatus.Succeeded));
+    }
+
+    [Test]
+    public void ConditionThatCancelsALaterFlowEndsItsWaitInTheSameTick()
+    {
+        // Same result required after the deadline queue (#946). Both deadlines pass in the second Tick, but the condition,
+        // evaluated between the two time waits, cancels the later flow: on the World thread the cancel applies at once, so
+        // its wait is not satisfied and the flow ends Canceled in this Tick. Its finally runs after step 3 (after the
+        // condition that began after it was evaluated) and before the resumes that step 3 reserved, although the resume
+        // of the wait that began before the condition was reserved before the cancel.
+        FlowHandle later = default;
+        var cancelNow = false;
+
+        async FlowTask Timed(string name)
+        {
+            try
+            {
+                await FlowTask.WaitForSeconds(1.5 * Dt);
+                Log.Add(name + " resumed");
+            }
+            finally
+            {
+                Log.Add(name + " finally");
+            }
+        }
+
+        async FlowTask Canceler()
+        {
+            await FlowTask.WaitUntil(() =>
+            {
+                if (!cancelNow) return false;
+                Log.Add("cancel");
+                later.Cancel();
+                Log.Add("canceled");
+                return true;
+            });
+            Log.Add("canceler resumed");
+        }
+
+        async FlowTask Last()
+        {
+            // Began after the canceled wait: shows that the unwinding of the canceled flow runs after step 3.
+            await FlowTask.WaitUntil(() =>
+            {
+                if (!cancelNow) return false;
+                Log.Add("last evaluated");
+                return true;
+            });
+            Log.Add("last resumed");
+        }
+
+        var before = World.Run(Timed("before"));
+        World.Run(Canceler());
+        later = World.Run(Timed("later"));
+        World.Run(Last());
+        Tick();
+        AssertLog();
+        cancelNow = true;
+        Tick();
+        AssertLog("cancel", "canceled", "last evaluated", "later finally", "before resumed", "before finally", "canceler resumed", "last resumed");
+        Assert.That(before.Status, Is.EqualTo(FlowStatus.Succeeded));
+        Assert.That(later.Status, Is.EqualTo(FlowStatus.Canceled));
+        Assert.That(later.CancelCause, Is.EqualTo(CancelCause.Explicit));
+    }
+
+    [Test]
+    public void TimeFrameAndConditionWaitsSatisfiedInOneTickResumeInTheOrderTheyBegan()
+    {
+        // Same result required after the deadline queue (#946). The kinds alternate (time, frames, condition), and the
+        // waits of the second group began 2 Ticks after the first group with shorter waits, so that all of them are
+        // satisfied in the third Tick: they resume in the order the waits began, not by kind or by deadline. A flow that
+        // awaits NextFrame 3 times began its last wait in the flush of the second Tick, so it comes after the rest of
+        // the first group (in the order those resumes ran) and before the second group.
+        var go = false;
+        // 0 = WaitForSeconds, 1 = DelayFrames, 2 = NextFrame, 3 = WaitUntil
+        var first = new[] { 0, 1, 3, 2, 3, 0, 2, 1, 0, 3, 1, 2 };
+        var second = new[] { 3, 0, 2, 1, 3, 2, 0, 1 };
+
+        async FlowTask Wait(string name, int kind, int frames)
+        {
+            switch (kind)
+            {
+                case 0:
+                    await FlowTask.WaitForSeconds((frames - 0.5) * Dt);
+                    break;
+                case 1:
+                    await FlowTask.DelayFrames(frames);
+                    break;
+                case 2:
+                    for (var i = 0; i < frames; i++) await FlowTask.NextFrame();
+                    break;
+                default:
+                    await FlowTask.WaitUntil(() => go);
+                    break;
+            }
+
+            Log.Add(name);
+        }
+
+        // The first group waits 3 frames (or for the condition), the second, started after 2 Ticks, 1 frame.
+        for (var i = 0; i < first.Length; i++) World.Run(Wait("a" + i, first[i], 3));
+        Tick(2);
+        for (var i = 0; i < second.Length; i++) World.Run(Wait("b" + i, second[i], 1));
+        AssertLog();
+        go = true;
+        Tick();
+        AssertLog("a0", "a1", "a2", "a4", "a5", "a7", "a8", "a9", "a10", "a3", "a6", "a11",
+            "b0", "b1", "b2", "b3", "b4", "b5", "b6", "b7");
+    }
+
+    [Test]
+    public void ConditionThatChangesTheTimeScaleTakesEffectFromTheNextTick()
+    {
+        // Same result required after the deadline queue (#946). The clocks advance (step 2) before the waits are
+        // evaluated (step 3), so a condition that halves DefaultClock's TimeScale does not change the time of this Tick:
+        // the time wait that began after it and whose deadline passed resumes in this Tick. The new scale applies from
+        // the next Tick, and delays the wait whose deadline was in the next Tick by one Tick.
+        var scaleNow = false;
+
+        async FlowTask Timed(string name, double seconds)
+        {
+            await FlowTask.WaitForSeconds(seconds);
+            Log.Add(name + " at frame " + World.DefaultClock.FrameCount);
+        }
+
+        async FlowTask Scaler()
+        {
+            await FlowTask.WaitUntil(() =>
+            {
+                if (!scaleNow) return false;
+                World.DefaultClock.TimeScale = 0.5;
+                Log.Add("scale");
+                return true;
+            }, World.UnscaledClock);
+            Log.Add("scaler resumed");
+        }
+
+        World.Run(Timed("before", 1.5 * Dt));
+        World.Run(Scaler());
+        World.Run(Timed("due now", 1.5 * Dt));
+        World.Run(Timed("due next", 2.75 * Dt));
+        Tick();
+        AssertLog();
+        scaleNow = true;
+        Tick();
+        AssertLog("scale", "before at frame 2", "scaler resumed", "due now at frame 2");
+        Log.Clear();
+        Tick();
+        AssertLog();
+        Assert.That(World.DefaultClock.Time, Is.EqualTo(2.5 * Dt).Within(1e-12));
+        Tick();
+        AssertLog("due next at frame 4");
+    }
+
     [Test]
     public void WhenAllUnwindsRemainingBranchesBeforePropagating()
     {
