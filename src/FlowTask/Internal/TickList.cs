@@ -52,25 +52,31 @@ internal sealed class TickList
     /// <paramref name="target"/>. The target is in the clock's own time, which only step 2 moves, so a change of time
     /// scale or pause (of the clock or of a parent) leaves it as it is.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void AddDeadline(FlowNode node, Clock clock, bool frames, double target)
     {
         if ((node.Flags & NodeFlags.InTickList) != 0) return;
         node.Flags |= NodeFlags.InTickList;
         node.TickSeq = _nextSeq++;
+        // Waits that begin together usually share a target (the flows resumed in one Tick that wait a frame): they join
+        // the bucket the last wait joined.
+        var q = clock.TickQueue;
+        var b = q == null ? null : frames ? q.Frames.Last : q.Time.Last;
+        if (b == null || b.Key != target) b = NewBucket(clock, frames, target);
+        b.Append(node);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    DeadlineBucket NewBucket(Clock clock, bool frames, double target)
+    {
         var q = clock.TickQueue ??= new ClockQueue(clock);
         if (q.Index < 0) Register(q);
         var heap = frames ? q.Frames : q.Time;
-        var b = heap.Last;
-        // Waits that begin together usually share a target (the flows resumed in one Tick that wait a frame).
-        if (b == null || b.Key != target)
-        {
-            b = RentBucket();
-            b.Key = target;
-            heap.Push(b);
-            heap.Last = b;
-        }
-
-        b.Append(node);
+        var b = RentBucket();
+        b.Key = target;
+        heap.Push(b);
+        heap.Last = b;
+        return b;
     }
 
     internal void Remove(FlowNode node)
@@ -250,8 +256,8 @@ internal sealed class TickList
             }
             else
             {
-                TakeUpTo(q.Time, clock.Time);
-                TakeUpTo(q.Frames, clock.FrameCount);
+                if (q.Time.Count > 0 && q.Time.Min.Key <= clock.Time) TakeUpTo(q.Time, clock.Time);
+                if (q.Frames.Count > 0 && q.Frames.Min.Key <= clock.FrameCount) TakeUpTo(q.Frames, clock.FrameCount);
             }
 
             if (q.Time.Count == 0 && q.Frames.Count == 0) Unregister(q);
