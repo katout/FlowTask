@@ -1,8 +1,8 @@
 namespace Katout.FlowTask.Tests;
 
 /// <summary>
-/// No heap allocation in steady state: per-Tick waits, loops while staying in a scope, signals and subscriptions, Race
-/// and WhenAll resolution, FlowProperty and Pause.
+/// No heap allocation in steady state: per-Tick waits, counting and reading resumes, loops while staying in a scope,
+/// signals and subscriptions, Race and WhenAll resolution, FlowProperty and Pause.
 /// </summary>
 public class AllocationTests : FlowTestBase
 {
@@ -30,6 +30,28 @@ public class AllocationTests : FlowTestBase
 
         World.Run(Loop());
         AssertSteadyStateAllocationFree(() => Tick(300));
+    }
+
+    [Test]
+    public void CountingAndReadingResumes()
+    {
+        async FlowTask Loop()
+        {
+            while (true) await FlowTask.NextFrame();
+        }
+
+        var a = World.Run(Loop());
+        var b = World.Run(Loop());
+        long sum = 0;
+        AssertSteadyStateAllocationFree(() =>
+        {
+            for (var i = 0; i < 100; i++)
+            {
+                World.Tick(Dt);
+                sum += a.ResumeCount + b.ResumeCount;
+            }
+        });
+        Assert.That(sum, Is.GreaterThan(0));
     }
 
     async FlowTask<int> Step(int i)

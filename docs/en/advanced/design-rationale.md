@@ -199,6 +199,16 @@ Flow code runs only on the thread that created the World, inside `Tick`, `Flush`
 - A program without an engine needs a loop that calls Tick. Write the loop so that it doesn't leave the World's thread.
 - In a program with only work that has nothing to do with frames, FlowTask brings little benefit, and using Task directly is simpler.
 
+## The resume count is the times the state machine was advanced
+
+`FlowHandle.ResumeCount` is the number of times the scheduler continued an async method after an await suspended it. It was added because a game that puts how far its flows have gone into a hash of its state needs a number that is the same in two runs with the same input and doesn't change with the thread count. Counting inside the flow's code means writing the same line in every method, and it can't be read from outside.
+
+**Why**
+
+- The times the state machine is advanced are decided by the one queue and the Ticks, as the order of resumes is, so the same input gives the same value (completions and cancellations from other threads count as input). An await that didn't suspend depends only on whether the task ended at once, and doesn't advance the state machine, so it doesn't count.
+- The resume at which a canceled method throws `FlowCanceledException` counts as one. A type passed to `FlowWorld.SkipUnwinding` ends at that resume without running the method, and it also counts as one, so both Worlds give the same value.
+- The count is kept in the state machine's node and goes back to 0 when the node returns to its pool. A handle's node never returns to the pool, so the value stays after the task has ended and doesn't mix with the counts of other calls of the same method.
+
 ## Flows don't capture the ExecutionContext
 
 FlowTask's builder doesn't capture the ExecutionContext, and flows run in the ExecutionContext of whoever calls Tick or a similar method. An `AsyncLocal<T>` value set inside a flow doesn't belong to that flow, and nothing guarantees that the flow sees the same value after an await ([Execution model](execution-model.md)).

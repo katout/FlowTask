@@ -132,6 +132,7 @@ if (download.IsCompleted && download.Status == FlowStatus.Succeeded) ShowDone();
 | `Cancel()` | タスクとその子孫を取り消す。どのスレッドからでも呼べる |
 | `CancelCause` | 取り消しが求められたかと、その理由 |
 | `Exception` | 例外で終わったときの、その例外。それ以外では null |
+| `ResumeCount` | 非同期メソッドが await で止まった後に再開した回数 |
 | `Result` | 成功したときの値（`FlowHandle<T>`）。それ以外では例外 |
 | `Join()` | 終わるまで待つ `FlowTask`。1 つのハンドルにつき 1 回だけ使える |
 | `AsTask()` | フローの外のコードが待つための `Task` |
@@ -140,6 +141,7 @@ if (download.IsCompleted && download.Status == FlowStatus.Succeeded) ShowDone();
 - `Join()` は、相手がキャンセルか例外で終わると `FlowJoinException` を投げます。相手が例外で終わったときは、その例外が `InnerException` に入ります。一度も始まっていないハンドル（キャンセルされたスコープで断られた Spawn や、既定値のハンドル）の Join は、始まっていないことを文面に書いた `FlowJoinException` を投げます。終わり方を問わずに待つなら、`await FlowTask.WaitUntil(handle, h => h.IsCompleted)` の後で `Status` を見ます。
 - 1 つのハンドルを 2 回 Join すると、2 回目の await が `FlowMisuseException` になります。Race に負けて巻き戻った Join も 1 回に数えます。もう一度待つなら `WaitUntil` を使います。
 - 取り消した後も、後始末（`finally` の await など）が終わるまで `Status` は `Running` のままです。`CancelCause` が `None` 以外なら、閉じている最中です（[スコープとキャンセル](scopes-and-cancellation.md)）。
+- `ResumeCount` は、非同期メソッドが await で止まり、そこから続いた回数です。取り消されたメソッドが `FlowCanceledException` を投げる再開（`FlowWorld.SkipUnwinding` に渡した型では、そこで終わる再開）も 1 回に数えます。始めと、止まらなかった await（すぐ終わるタスクの await）は数えません。同じフローに同じ Tick と、別のスレッドからの同じ完了と取り消しを与えれば、同じ回数になります(`Task` の橋渡しを待つフローは、`Task` が終わったタイミングで変わります)。終わった後も値は残ります。待ちや合成のタスク（`Flow.Spawn(FlowTask.DelayFrames(2))` や、`WithoutResult` で包んだタスクなど）と、タスクのないハンドルでは 0 です。World のスレッドで読みます。
 - `Join()` は普通の FlowTask なので、`FlowTask.Race(handle.Join(), FlowTask.WaitForSeconds(5))` のように合成できます（[合成](composition.md)）。
 - 自分自身か祖先の Join は、決して終わらないので `FlowMisuseException` になります。フローどうしが互いに Join する形は検出しないので、止まったらダンプで探します（[デバッグ](../tools/debugging.md)）。
 

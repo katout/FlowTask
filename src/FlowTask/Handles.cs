@@ -24,6 +24,9 @@ public readonly struct FlowHandle
     /// <inheritdoc cref="FlowHandle{T}.Exception"/>
     public Exception Exception => _inner.Exception;
 
+    /// <inheritdoc cref="FlowHandle{T}.ResumeCount"/>
+    public long ResumeCount => _inner.ResumeCount;
+
     /// <inheritdoc cref="FlowHandle{T}.Cancel"/>
     public void Cancel() => _inner.Cancel();
 
@@ -78,6 +81,16 @@ public readonly struct FlowHandle<T>
     /// is not wrapped in an AggregateException.
     /// </summary>
     public Exception Exception => IsValid && _node.State == NodeState.Faulted ? _node.Failure?.Info?.Exception : null;
+
+    /// <summary>
+    /// How many times the task's async method has resumed: continued after an await that suspended it, including the
+    /// resume at which a canceled method throws <see cref="FlowCanceledException"/> (or ends, for a type passed to <see
+    /// cref="FlowWorld.SkipUnwinding"/>). Its start is not one, nor an await that does not suspend it (one of a task
+    /// that ends at once). The same flows given the same Ticks and the same completions and cancellations from other
+    /// threads resume the same number of times. It keeps its value once the task has ended; 0 for a task that is not an
+    /// async method (a wait or a combinator) and for a handle with no task. Read it on the World's thread.
+    /// </summary>
+    public long ResumeCount => IsValid && _node is StateMachineScope<T> scope ? scope.ResumeCount : 0;
 
     /// <summary>The result of a task that succeeded; throws otherwise.</summary>
     public T Result => IsValid && _node.State == NodeState.Succeeded
