@@ -169,6 +169,22 @@ public class SkipUnwindingTests
             "a: Canceled WorldDisposed ", "b: Canceled WorldDisposed ");
     }
 
+    [Test]
+    public void ACatchFilteredToLetTheCancellationPassEndsAsItWouldUnwinding()
+    {
+        // The catch-all FLOW001 asks for, around an await: its filter lets FlowCanceledException pass, so unwinding does
+        // not run the catch either.
+        AssertSameEnd((w, log) =>
+            {
+                var h = w.Run(SkipFlows.Filtered());
+                Tick(w, 1);
+                h.Cancel();
+                Tick(w, 2);
+                log.Add(Describe("filtered", h));
+            },
+            "filtered start", "filtered cleanup", "filtered: Canceled Explicit ");
+    }
+
     // ------------------------------------------------------------------ a scope canceled while it runs
 
     [Test]
@@ -298,6 +314,45 @@ public class SkipUnwindingTests
         AssertRejected(typeof(CatchCancellationAroundAwait), "Run");
         // catch (TEx) takes FlowCanceledException when TEx is Exception: the check cannot tell, so it rejects.
         AssertRejected(typeof(CatchTypeParameterAroundAwait), "Run");
+    }
+
+    [Test]
+    public void AFilterThatLetsTheCancellationPassIsAccepted()
+    {
+        // when (e is not FlowCanceledException), as FLOW001 asks, and the forms that come to the same for it.
+        AssertAccepted(typeof(FilterExcludingCancellation));
+        AssertAccepted(typeof(FilterExcludingOperationCanceled));
+        AssertAccepted(typeof(FilterExcludingCancellationFirst));
+    }
+
+    [Test]
+    public void AFilterThatMayTakeTheCancellationIsRejected()
+    {
+        // A filter on another condition, or one that reads more than the exception's type first: the check cannot tell
+        // that it lets FlowCanceledException pass, so it rejects. A filter that takes it is rejected too.
+        AssertRejected(typeof(FilterOnAnotherCondition), "Run");
+        AssertRejected(typeof(FilterCallingFirst), "Run");
+        AssertRejected(typeof(FilterTakingCancellation), "Run");
+    }
+
+    [Test]
+    public void TheMessageNamesWhatTheSourceHas()
+    {
+        // A lambda is named by the method it is written in; one in a field initializer by that.
+        AssertRejected(typeof(LambdaWithFinally), "Make");
+        if (CanReadMethodBodies())
+        {
+            var e = Assert.Throws<FlowAssertionException>(() => FlowAssert.CanSkipUnwinding(typeof(FieldInitializerWithFinally)));
+            Assert.That(e.Message, Does.Contain("field initializer").And.Not.Contain("cctor"));
+            e = Assert.Throws<FlowAssertionException>(() => FlowAssert.CanSkipUnwinding(typeof(LambdaWithFinally)));
+            Assert.That(e.Message, Does.Contain("lambda in 'Make'"));
+        }
+        else
+        {
+            // Where method bodies cannot be read, the message names the type passed, not the check's own probe.
+            var e = Assert.Throws<NotSupportedException>(() => FlowAssert.CanSkipUnwinding(typeof(LambdaWithFinally)));
+            Assert.That(e.Message, Does.Contain(nameof(LambdaWithFinally)).And.Not.Contain("Probe"));
+        }
     }
 
     [Test]
@@ -448,6 +503,118 @@ public class SkipUnwindingTests
         }
     }
 
+    static readonly bool s_flag = Environment.ProcessorCount > 64;
+
+    static bool Seen(Exception e) => e != null;
+
+    static class FilterExcludingCancellation
+    {
+        internal static async FlowTask Run()
+        {
+            try
+            {
+                await FlowTask.NextFrame();
+            }
+            catch (Exception e) when (e is not FlowCanceledException)
+            {
+                s_counter += e.Message.Length;
+            }
+        }
+    }
+
+    static class FilterExcludingOperationCanceled
+    {
+        internal static async FlowTask Run()
+        {
+            try
+            {
+                await FlowTask.NextFrame();
+            }
+            catch (Exception e) when (!(e is OperationCanceledException))
+            {
+                s_counter++;
+            }
+        }
+    }
+
+    static class FilterExcludingCancellationFirst
+    {
+        internal static async FlowTask Run()
+        {
+            try
+            {
+                await FlowTask.NextFrame();
+            }
+            catch (Exception e) when (e is not FlowCanceledException && Seen(e) && s_flag)
+            {
+                s_counter++;
+            }
+        }
+    }
+
+    static class FilterOnAnotherCondition
+    {
+        internal static async FlowTask Run()
+        {
+            try
+            {
+                await FlowTask.NextFrame();
+            }
+            catch (Exception) when (s_flag)
+            {
+                s_counter++;
+                throw;
+            }
+        }
+    }
+
+    static class FilterCallingFirst
+    {
+        internal static async FlowTask Run()
+        {
+            try
+            {
+                await FlowTask.NextFrame();
+            }
+            catch (Exception e) when (Seen(e) && e is not FlowCanceledException)
+            {
+                s_counter++;
+                throw;
+            }
+        }
+    }
+
+    static class FilterTakingCancellation
+    {
+        internal static async FlowTask Run()
+        {
+            try
+            {
+                await FlowTask.NextFrame();
+            }
+            catch (Exception e) when (e is FlowCanceledException)
+            {
+                s_counter++;
+                throw;
+            }
+        }
+    }
+
+    static class FieldInitializerWithFinally
+    {
+        internal static readonly Func<FlowTask> Make = async () =>
+        {
+            try
+            {
+                await FlowTask.NextFrame();
+            }
+            finally
+            {
+                s_counter++;
+            }
+        };
+    }
+
     static class CatchOtherAroundAwait
     {
         internal static async FlowTask Run()
@@ -569,6 +736,23 @@ internal static class SkipFlows
         Flow.Spawn(FailsAfter(2, "boom"));
         if (parked) await FlowTask.DelayFrames(1000);
         else await Child("carrier.child");
+        L("never");
+    }
+
+    /// <summary>The catch-all FLOW001 asks for, around an await: its filter lets FlowCanceledException pass.</summary>
+    internal static async FlowTask Filtered()
+    {
+        Flow.AddCleanup(() => L("filtered cleanup"));
+        L("filtered start");
+        try
+        {
+            await FlowTask.Never();
+        }
+        catch (Exception e) when (e is not FlowCanceledException)
+        {
+            L("filtered caught " + e.Message);
+        }
+
         L("never");
     }
 

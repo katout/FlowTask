@@ -9,7 +9,7 @@ without a deprecation period; every break is listed here.
 
 ### Added
 
-- `FlowWorld.SkipUnwinding(Type)`: canceled in that World, the async methods of the type end at their await without throwing `FlowCanceledException` (no allocation; about 0.14 µs instead of 1.2 µs per method in `Cancel 10000 flows` of `tools/bench/ab.cs`), for types with no `finally`, `using` or cancellation-taking `catch` around an await, which `FlowAssert.CanSkipUnwinding` (FlowTask.Testing) checks in a test on the JIT and Mono. The end is otherwise the same as unwinding (status, cause, reports, children first, `AddCleanup` and `Own`, `Flow.NonCancelable` awaits); types not passed to it unwind as before.
+- `FlowWorld.SkipUnwinding(Type)`: canceled in that World, the async methods of the type end at their await without throwing `FlowCanceledException` (no allocation; about 0.14 µs instead of 1.2 µs per method in `Cancel 10000 flows` of `tools/bench/ab.cs`), for types with no `finally`, `using` or cancellation-taking `catch` around an await, which `FlowAssert.CanSkipUnwinding` (FlowTask.Testing) checks in a test on the JIT and Mono (a catch-all filtered with `when (e is not FlowCanceledException)`, as FLOW001 asks, passes). The end is otherwise the same as unwinding (status, cause, reports, children first, `AddCleanup` and `Own`, `Flow.NonCancelable` awaits); types not passed to it unwind as before.
 
 ### Changed
 

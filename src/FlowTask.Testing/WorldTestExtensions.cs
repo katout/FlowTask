@@ -142,9 +142,10 @@ public static class FlowAssert
     /// <summary>
     /// Asserts that <paramref name="type"/> can be passed to <see cref="FlowWorld.SkipUnwinding"/>: none of its async
     /// methods (lambdas and local functions included) has a block around an await that unwinding would run (finally,
-    /// using, foreach over a disposable enumerator, or a catch that takes FlowCanceledException). It reads the compiled
+    /// using, foreach over a disposable enumerator, or a catch that takes FlowCanceledException; a filter such as
+    /// <c>when (e is not FlowCanceledException)</c> passes when its type tests alone let it pass). It reads the compiled
     /// method bodies, so it runs under the JIT or Mono only: elsewhere (NativeAOT, IL2CPP) it throws
-    /// NotSupportedException.
+    /// NotSupportedException. A trimmed build has only the methods something calls, so check in an untrimmed one.
     /// </summary>
     public static void CanSkipUnwinding(Type type)
     {
@@ -152,7 +153,7 @@ public static class FlowAssert
         var methods = UnwindRegions.MethodsWithCleanupAroundAwait(type);
         if (methods.Count > 0)
             throw new FlowAssertionException(
-                $"{type} cannot skip unwinding: its async methods {string.Join(", ", methods.Select(m => "'" + m + "'"))} have a finally, using, foreach or catch block around an await, " +
+                $"{type} cannot skip unwinding: its async methods {string.Join(", ", methods)} have a finally, using or foreach block, or a catch that may take FlowCanceledException, around an await, " +
                 "which a method canceled without unwinding does not run. Move those methods to another type, or do not pass the type to FlowWorld.SkipUnwinding.");
     }
 }
