@@ -373,6 +373,13 @@ public class SkipUnwindingTests
     }
 
     [Test]
+    public void TheBlocksOfTaskMethodsAreAccepted()
+    {
+        // Only a FlowTask method ends without unwinding: a Task or async void method in the type unwinds.
+        AssertAccepted(typeof(TaskMethodsWithBlocks));
+    }
+
+    [Test]
     public void SkipUnwindingTakesAType()
     {
         using var w = new FlowWorld();
@@ -613,6 +620,27 @@ public class SkipUnwindingTests
                 s_counter++;
             }
         };
+    }
+
+    static class TaskMethodsWithBlocks
+    {
+        internal static async System.Threading.Tasks.Task Run()
+        {
+            try
+            {
+                await System.Threading.Tasks.Task.Yield();
+            }
+            finally
+            {
+                s_counter++;
+            }
+        }
+
+        internal static async void Fire()
+        {
+            using var resource = new Resource();
+            await System.Threading.Tasks.Task.Yield();
+        }
     }
 
     static class CatchOtherAroundAwait

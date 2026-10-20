@@ -13,8 +13,8 @@ namespace Katout.FlowTask.Testing;
 internal static class UnwindRegions
 {
     /// <summary>
-    /// The async methods declared in <paramref name="type"/> (its lambdas and local functions included) that have a block
-    /// around an await that unwinding would run, as the source names them ("'Run'", "a lambda in 'Make'"). Throws
+    /// The async FlowTask methods declared in <paramref name="type"/> (its lambdas and local functions included) that have
+    /// a block around an await that unwinding would run, as the source names them ("'Run'", "a lambda in 'Make'"). Throws
     /// NotSupportedException where method bodies cannot be read.
     /// </summary>
     internal static List<string> MethodsWithCleanupAroundAwait(Type type)
@@ -32,7 +32,7 @@ internal static class UnwindRegions
         {
             var t = pending.Pop();
             if (t.Name.Length == 0 || t.Name[0] != '<') continue;
-            if (typeof(IAsyncStateMachine).IsAssignableFrom(t))
+            if (typeof(IAsyncStateMachine).IsAssignableFrom(t) && BuildsFlowTask(t))
             {
                 var moveNext = t.GetMethod("MoveNext", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly)
                     ?? throw Unreadable(type);
@@ -44,6 +44,19 @@ internal static class UnwindRegions
 
         found.Sort(StringComparer.Ordinal);
         return found;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="stateMachine"/> is that of a FlowTask method: only those end without unwinding, so the state
+    /// machines of Task, ValueTask, async void and async iterator methods are not read. Its builder field tells; a state
+    /// machine without one (not written by Roslyn) is read.
+    /// </summary>
+    static bool BuildsFlowTask(Type stateMachine)
+    {
+        var builder = stateMachine.GetField("<>t__builder", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)?.FieldType;
+        if (builder == null) return true;
+        if (builder.IsGenericType) builder = builder.GetGenericTypeDefinition();
+        return builder == typeof(FlowTaskMethodBuilder) || builder == typeof(FlowTaskMethodBuilder<>);
     }
 
     static NotSupportedException Unreadable(Type type) =>

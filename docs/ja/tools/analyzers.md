@@ -14,6 +14,8 @@ FlowTask には、実行モデル（スコープ、キャンセルの巻き戻�
 | [FLOW008](#flow008) | 警告 | 戻り値を使わない `Flow.Spawn(...)` | あり |
 | [FLOW009](#flow009) | 警告 | FlowTask メソッドの中のイベントハンドラでの `Flow.Spawn` | なし |
 | [FLOW010](#flow010) | 警告 | `finally`（と例外を渡す `catch`）の中の、`Flow.NonCancelable` のない `await` | あり |
+| [FLOW011](#flow011) | エラー | `FlowWorld.SkipUnwinding` に渡した型が、`await` を囲む `finally`、`using`、`foreach`、キャンセルを受け取る `catch` を持つ | なし |
+| [FLOW012](#flow012) | 警告 | アナライザが読めない型（`typeof` でない、別のアセンブリの型）を `FlowWorld.SkipUnwinding` に渡している | なし |
 
 書いたとおりに動かないことが確かなものは**エラー**、たいていは誤りだが意図どおりのこともあるものは**警告**、書き方の提案は**情報**です。重大度は変えられます（[重大度の変更](#重大度の変更)）。カテゴリはすべて `FlowTask` です。IDE の診断のヘルプのリンクは、このページの英語版の各節を指します。
 
@@ -567,6 +569,103 @@ async FlowTask<Choice> Confirm()
 ### コード修正
 
 「Flow.NonCancelable で await する（ひとりでに終わる後始末だけ）」：`await x` を `await Flow.NonCancelable(x)` に書き換えます。入力の待ちを包むとハングを作るので、一括の修正はありません。1 つずつ選んでください。
+
+---
+
+<a id="flow011"></a>
+## FLOW011: FlowWorld.SkipUnwinding には await を囲む後始末のない型だけを渡す（エラー）
+
+### 検出するもの
+
+`FlowWorld.SkipUnwinding(typeof(T))` の呼び出しのうち、`T` のソースが、`T` の async の `FlowTask` のメソッド（`FlowTask` か `FlowTask<T>` を返すもの）か `T` に書いた async の `FlowTask` のラムダとローカル関数に（`partial` の型はどの部分でも、`T` の C# 14 の extension ブロックでも、ジェネリックの型はその定義で）、`await` を囲む次のものを持つもの。`Task`・`ValueTask`・`void` を返す async のメソッド・ラムダ・ローカル関数は調べません。どの型でも巻き戻すからです。
+
+- `try` ブロックに `await` を含む `finally`。`finally` のある `try` 文の、`await` する `catch` ブロック。
+- `await` を囲む `using` 文、同じブロックで `await` より前にある `using var` 宣言（ラベルが付いていても）、それぞれの `await using`。2 つ以上の資源を宣言する `using` は、それぞれを前の資源の `try` ブロックに入れます。そのため、2 つ目以降の初期化子の `await`（`using var a = new A(), b = await MakeAsync();`）と、2 つ以上の資源の `await using`（後の資源の破棄をそこで待つ）も報告します。
+- `await` を囲み、列挙子を破棄する `foreach`。配列と `string` の `foreach`（コンパイラが要素のループにする）と、列挙子が `Dispose` のない構造体か sealed のクラスの `foreach` は報告しません。
+- 列挙子が `DisposeAsync` を持つか `IAsyncDisposable` を実装する `await foreach`。コンパイラは、列挙子を破棄するブロックの中で `MoveNextAsync` を待ちます。列挙子がどちらでもない `await foreach` は報告しません。
+- `await` を囲み、`FlowCanceledException` を受け取りうる `catch`。`catch`、`catch (Exception)`、`catch (OperationCanceledException)`、`catch (FlowCanceledException)`、制約によらず型パラメーターの `catch (TEx)`、`FlowCanceledException` に対して false と分からない `when` のフィルタです。フィルタは、走る順に読んで型の判定で false になると分かるときに通します。`when (e is not FlowCanceledException)`、`when (!(e is OperationCanceledException))`、`when (e is not FlowCanceledException && Log(e))` です。2 つの `bool` の `==` と `!=`（`when (e is FlowCanceledException == false)`）、`? :`（`when (e is FlowCanceledException ? false : true)`）、`bool` の `is false`・`is true`・`is not`、`e != null` も読みます。先に呼び出しやフィールドを読むフィルタ（`when (Log(e) && e is not FlowCanceledException)`）と、`&` か `|` で組み合わせたフィルタは報告します。
+
+報告しないもの：`catch` と `finally` のブロックそのものの中の `await`（コンパイラが `try` 文の外へ移す）、中に `await` のないブロック、`T` の中に入れ子にした名前つきの型（別の型です。別に渡してください）。ソース生成器が呼び出しを書くことがあるので、生成されたコードも解析します。
+
+### 理由
+
+`SkipUnwinding` に渡した型の async の `FlowTask` のメソッドは、その World で取り消されると、止まっている `await` で `FlowCanceledException` を投げずに終わります（[スコープとキャンセル](../guide/scopes-and-cancellation.md)）。そのため、巻き戻しなら走る、その `await` を囲むブロックは走りません。`finally` は解放せず、`using` は破棄せず、`catch` は記録しません。実行時には何も確かめません。`FlowAssert.CanSkipUnwinding`（FlowTask.Testing）がテストでコンパイルされたコードを読んで確かめ、このルールはコンパイル時に同じ判定をするので、テストを書き忘れても通りません。2 つは同じ形の一覧でテストしています。
+
+### 悪い例
+
+```csharp
+static class EnemyFlows
+{
+    public static async FlowTask Patrol(Enemy enemy)
+    {
+        using var path = enemy.ReservePath();
+        await FlowTask.WaitForSeconds(1); // canceled here without unwinding: the path is never released
+    }
+}
+
+world.SkipUnwinding(typeof(EnemyFlows)); // FLOW011
+```
+
+### 修正例
+
+```csharp
+static class EnemyFlows
+{
+    public static async FlowTask Patrol(Enemy enemy)
+    {
+        var path = enemy.ReservePath();
+        Flow.AddCleanup(path.Dispose); // runs when the scope ends, also without unwinding
+        await FlowTask.WaitForSeconds(1);
+    }
+}
+
+world.SkipUnwinding(typeof(EnemyFlows));
+```
+
+ブロックの要るメソッドを、渡さない型へ移してもかまいません。
+
+### コード修正
+
+コード修正はありません。
+
+---
+
+<a id="flow012"></a>
+## FLOW012: 解析できない型は FlowAssert.CanSkipUnwinding で確かめる（警告）
+
+### 検出するもの
+
+`FlowWorld.SkipUnwinding` の呼び出しのうち、引数が、ソースがコンパイルの中にある型の `typeof` でないもの。変数、メソッドの呼び出し、型パラメーターの `typeof(T)`、別のアセンブリ（DLL やパッケージ）で宣言された型の `typeof` です。`SkipUnwinding` をデリゲートにしたもの（`Action<Type> skip = world.SkipUnwinding;`）も報告します。渡す型が `SkipUnwinding` の呼び出しに書かれないからです。`null` は報告しません。
+
+### 理由
+
+[FLOW011](#flow011) が型を確かめられるのは、呼び出しがその型を書き、そのソースを読めるときだけです。それ以外の型は、テストの `FlowAssert.CanSkipUnwinding(type)` が確かめます（JIT と Mono、つまり .NET のテストと Unity のエディタでコンパイルされたコードを読みます）。書ける所では呼び出しごとに `typeof` を書き、書けないならそのテストを書いて、呼び出しの所で理由を付けて警告を抑制してください。
+
+### 例
+
+```csharp
+static readonly Type[] Skipped = { typeof(EnemyFlows), typeof(BulletFlows) };
+
+public static void Register(FlowWorld world)
+{
+    foreach (var type in Skipped)
+    {
+#pragma warning disable FLOW012 // SkipTests checks every type of Skipped with FlowAssert.CanSkipUnwinding
+        world.SkipUnwinding(type);
+#pragma warning restore FLOW012
+    }
+}
+
+[Test]
+public void SkippedTypesCanSkipUnwinding()
+{
+    foreach (var type in Skipped) FlowAssert.CanSkipUnwinding(type);
+}
+```
+
+### コード修正
+
+コード修正はありません。
 
 ---
 

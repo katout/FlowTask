@@ -209,4 +209,29 @@ internal static class Descriptors
         L(nameof(Resources.Flow010Title)),
         L(nameof(Resources.Flow010Message)),
         L(nameof(Resources.Flow010Description)));
+
+    // ------------------------------------------------------------------ FLOW011
+
+    public static readonly DiagnosticDescriptor SkipUnwindingTypeHasCleanup = Create(
+        DiagnosticIds.SkipUnwindingTypeHasCleanup,
+        DiagnosticSeverity.Error,
+        L(nameof(Resources.Flow011Title)),
+        L(nameof(Resources.Flow011Message)),
+        L(nameof(Resources.Flow011Description)));
+
+    // ------------------------------------------------------------------ FLOW012
+
+    public static readonly DiagnosticDescriptor SkipUnwindingTypeNotWritten = Create(
+        DiagnosticIds.SkipUnwindingTypeNotChecked,
+        DiagnosticSeverity.Warning,
+        L(nameof(Resources.Flow012Title)),
+        L(nameof(Resources.Flow012MessageNotWritten)),
+        L(nameof(Resources.Flow012Description)));
+
+    public static readonly DiagnosticDescriptor SkipUnwindingTypeWithoutSource = Create(
+        DiagnosticIds.SkipUnwindingTypeNotChecked,
+        DiagnosticSeverity.Warning,
+        L(nameof(Resources.Flow012Title)),
+        L(nameof(Resources.Flow012MessageWithoutSource)),
+        L(nameof(Resources.Flow012Description)));
 }

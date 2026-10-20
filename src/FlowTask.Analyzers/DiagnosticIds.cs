@@ -39,6 +39,18 @@ public static class DiagnosticIds
     /// </summary>
     public const string CleanupAwaitNotProtected = "FLOW010";
 
+    /// <summary>
+    /// The type passed to FlowWorld.SkipUnwinding as typeof has a block around an await that unwinding would run
+    /// (finally, using, a foreach that disposes, await foreach, or a catch that may take FlowCanceledException).
+    /// </summary>
+    public const string SkipUnwindingTypeHasCleanup = "FLOW011";
+
+    /// <summary>
+    /// The type passed to FlowWorld.SkipUnwinding cannot be read by the analyzer (not written as typeof, or declared in
+    /// another assembly): FlowAssert.CanSkipUnwinding in a test is its check.
+    /// </summary>
+    public const string SkipUnwindingTypeNotChecked = "FLOW012";
+
     internal const string Category = "FlowTask";
 
     /// <summary>

@@ -227,4 +227,28 @@
     <value>Flow.NonCancelable で await する（ひとりでに終わる後始末だけ）</value>
     <comment>FLOW010 (NonCancelableCodeFixProvider).</comment>
   </data>
+  <data name="Flow011Title" xml:space="preserve">
+    <value>FlowWorld.SkipUnwinding には await を囲む後始末のない型だけを渡す</value>
+  </data>
+  <data name="Flow011Description" xml:space="preserve">
+    <value>World の SkipUnwinding に渡した型の async の FlowTask のメソッドは、その World で取り消されると、止まっている await で FlowCanceledException を投げずに終わります。そのため、巻き戻しなら走る、その await を囲むブロックは走りません。finally ブロック、using の文と宣言の破棄、foreach の列挙子と await foreach の破棄、キャンセルを受け取る catch です。FlowWorld.SkipUnwinding に typeof(T) で渡した型のソースが、その型の FlowTask を返す async のメソッドかその中の FlowTask のラムダとローカル関数に（partial の型はどの部分でも、extension ブロックでも、ジェネリックの型はその定義で。Task・ValueTask・async void のメソッドは巻き戻すので読みません）こうしたブロックを持つときに報告します。await を囲む finally ブロックと using、await より前の 'using var'、2 つ以上を宣言する using の 2 つ目以降の宣言子の await、2 つ以上の 'await using'、await を囲み列挙子を破棄する foreach（配列と文字列の foreach は除く）、列挙子が DisposeAsync を持つ await foreach、await を囲み FlowCanceledException を受けうる catch です。型パラメーターの catch は制約によらず数えます。'when' のフィルタは、走る順に見て FlowCanceledException に対して false と分かるときだけ通します（呼び出しより前の 'e is not FlowCanceledException'。bool の '=='・'!='・'? :'・'is false' も読みます）。catch と finally のブロックそのものの中の await（別のブロックがそのブロックを囲む場合を除く）、await を中に持たないブロック、型の中に入れ子にした名前つきの型（別の型です）は報告しません。テストでコンパイルされたコードを読む FlowAssert.CanSkipUnwinding（FlowTask.Testing）と同じ判定です。後始末を持つメソッドを別の型へ移すか、その型を渡さないでください。</value>
+  </data>
+  <data name="Flow011Message" xml:space="preserve">
+    <value>'{0}' を FlowWorld.SkipUnwinding に渡していますが、その中の {1} に、巻き戻しなら走る await を囲むブロック（finally、using、破棄する foreach、await foreach、FlowCanceledException を受けうる catch）があり、巻き戻さずに取り消されたメソッドではこれが走りません。そのコードを別の型へ移すか、この型を渡さないでください</value>
+    <comment>Message of Descriptors.SkipUnwindingTypeHasCleanup. {0}: the type. {1}: the methods, local functions and the members lambdas are written in, quoted and separated by commas.</comment>
+  </data>
+  <data name="Flow012Title" xml:space="preserve">
+    <value>解析できない型は FlowAssert.CanSkipUnwinding で確かめる</value>
+  </data>
+  <data name="Flow012Description" xml:space="preserve">
+    <value>アナライザが FlowWorld.SkipUnwinding に渡した型を確かめる（FLOW011）のは、呼び出しが typeof でその型を書き、そのソースがコンパイルの中にあるときだけです。FlowWorld.SkipUnwinding にそれ以外のもの（変数、呼び出し、型パラメーターの typeof、別のアセンブリで宣言された型の typeof）を渡すときと、FlowWorld.SkipUnwinding をデリゲートにするときに報告します。テストで FlowAssert.CanSkipUnwinding（FlowTask.Testing）でその型を確かめ（JIT と Mono でコンパイルされたコードを読みます）、そこでこの警告を抑制してください。ArgumentNullException を投げる null は報告しません。</value>
+  </data>
+  <data name="Flow012MessageNotWritten" xml:space="preserve">
+    <value>これが FlowWorld.SkipUnwinding に渡す型は型の typeof で書かれていないため、アナライザは await を囲む後始末を確かめられません。テストで FlowAssert.CanSkipUnwinding でその型を確かめてください</value>
+    <comment>Message of Descriptors.SkipUnwindingTypeNotWritten.</comment>
+  </data>
+  <data name="Flow012MessageWithoutSource" xml:space="preserve">
+    <value>'{0}' は別のアセンブリで宣言されているため、アナライザは FlowWorld.SkipUnwinding のための await を囲む後始末を確かめられません。テストで FlowAssert.CanSkipUnwinding で確かめてください</value>
+    <comment>Message of Descriptors.SkipUnwindingTypeWithoutSource. {0}: the type.</comment>
+  </data>
 </root>

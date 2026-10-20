@@ -21,6 +21,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FlowTask\FlowTask.csproj" />
+    <!-- FlowAssert.CanSkipUnwinding, which SkipUnwindingParityTests holds to the same shapes as FLOW011. -->
+    <ProjectReference Include="..\..\src\FlowTask.Testing\FlowTask.Testing.csproj" />
     <ProjectReference Include="..\..\src\FlowTask.Analyzers\FlowTask.Analyzers.csproj" />
     <ProjectReference Include="..\..\src\FlowTask.Analyzers.CodeFixes\FlowTask.Analyzers.CodeFixes.csproj" />
   </ItemGroup>

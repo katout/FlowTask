@@ -6,7 +6,7 @@ namespace Katout.FlowTask.Analyzers;
 /// Whether the cancellation of a FlowTask method (FlowCanceledException, thrown only by the GetResult of a FlowTask
 /// awaiter) can enter a catch clause, and whether the clause names the cancellation itself. Judged from the types, and
 /// a 'when' filter from its IOperation tree (what the compiler bound, whatever the syntax), so it follows whatever base
-/// type FlowCanceledException has. Used by FLOW001 and its code fix.
+/// type FlowCanceledException has. Used by FLOW001 and its code fix, and (<see cref="RunsOnUnwind"/>) by FLOW011.
 /// </summary>
 internal static class CatchClassifier
 {
@@ -37,20 +37,44 @@ internal static class CatchClassifier
             if (earlierType is not ITypeParameterSymbol && CanHoldCancellation(earlierType, types)) return false;
         }
 
-        return clause.Filter == null || EvaluateFilter(clause, model, types, cancellationToken) != Truth.False;
+        return clause.Filter == null || EvaluateFilter(clause, model, types, inOrder: false, cancellationToken) != Truth.False;
+    }
+
+    /// <summary>
+    /// True when FlowCanceledException, thrown at an await of the try block, may enter <paramref name="clause"/>, judged
+    /// as FlowAssert.CanSkipUnwinding (FlowTask.Testing) judges the clause in the compiled code: a catch without a type
+    /// or of a type that can hold it, any catch of a type parameter (its constraints are not read), and a 'when' filter
+    /// unless it is known to be false for it when followed in the order it runs (a call or a field before the type test,
+    /// or a non-short-circuit '&amp;' or '|', is not known). Earlier clauses are not looked at: one that takes the
+    /// cancellation first is such a clause itself.
+    /// </summary>
+    public static bool RunsOnUnwind(CatchClauseSyntax clause, SemanticModel model, FlowTaskTypes types, CancellationToken cancellationToken)
+    {
+        if (clause.Declaration != null)
+        {
+            var type = CaughtType(clause, model, cancellationToken);
+            if (type is null or ITypeParameterSymbol) return true;
+            if (!CanHoldCancellation(type, types)) return false;
+        }
+
+        return clause.Filter == null || EvaluateFilter(clause, model, types, inOrder: true, cancellationToken) != Truth.False;
     }
 
     /// <summary>
     /// The value of the 'when' filter of <paramref name="clause"/> when the exception is FlowCanceledException, from the
     /// filter's IOperation tree: type tests and patterns on the catch variable ('e is not FlowCanceledException',
     /// '!(e is FlowCanceledException)', 'e is IOException { … }', 'e is not (A or B)'), '!', '&amp;&amp;', '||', '&amp;',
-    /// '|' and constants. Anything else (a method call, a property of the exception) is unknown.
+    /// '|' and constants. Anything else (a method call, a property of the exception) is unknown. With
+    /// <paramref name="inOrder"/>, the operands of '&amp;&amp;', '||' and the pattern combinators are taken in the order
+    /// they run, so an unknown one before a known one makes the whole unknown, and '&amp;' and '|' are unknown; and, as
+    /// the check follows the comparisons and branches of the compiled filter, '==' and '!=' of two bools or of the catch
+    /// variable and null, 'c ? a : b', and 'is true', 'is false' and 'is not …' of a bool are known when their operands are.
     /// </summary>
-    static Truth EvaluateFilter(CatchClauseSyntax clause, SemanticModel model, FlowTaskTypes types, CancellationToken cancellationToken)
+    static Truth EvaluateFilter(CatchClauseSyntax clause, SemanticModel model, FlowTaskTypes types, bool inOrder, CancellationToken cancellationToken)
     {
         var variable = clause.Declaration != null ? model.GetDeclaredSymbol(clause.Declaration, cancellationToken) : null;
         var operation = model.GetOperation(clause.Filter.FilterExpression, cancellationToken);
-        return operation == null ? Truth.Unknown : Evaluate(operation, variable, types);
+        return operation == null ? Truth.Unknown : Evaluate(operation, variable, types, inOrder);
     }
 
     /// <summary>
@@ -130,41 +154,88 @@ internal static class CatchClassifier
         return false;
     }
 
-    static Truth Evaluate(IOperation operation, ILocalSymbol variable, FlowTaskTypes types)
+    static Truth Evaluate(IOperation operation, ILocalSymbol variable, FlowTaskTypes types, bool inOrder)
     {
         if (operation.ConstantValue.HasValue && operation.ConstantValue.Value is bool constant) return constant ? Truth.True : Truth.False;
         switch (operation)
         {
             case IParenthesizedOperation parenthesized:
-                return Evaluate(parenthesized.Operand, variable, types);
+                return Evaluate(parenthesized.Operand, variable, types, inOrder);
             case IConversionOperation conversion when conversion.IsImplicit:
-                return Evaluate(conversion.Operand, variable, types);
+                return Evaluate(conversion.Operand, variable, types, inOrder);
             case IUnaryOperation unary when unary.OperatorKind == UnaryOperatorKind.Not:
-                return Not(Evaluate(unary.Operand, variable, types));
+                return Not(Evaluate(unary.Operand, variable, types, inOrder));
+            case IBinaryOperation binary when inOrder && binary.OperatorKind is BinaryOperatorKind.And or BinaryOperatorKind.Or:
+                // Both operands run, and an instruction the check does not follow combines their values.
+                return Truth.Unknown;
             case IBinaryOperation binary when binary.OperatorKind is BinaryOperatorKind.ConditionalAnd or BinaryOperatorKind.And:
-                return And(Evaluate(binary.LeftOperand, variable, types), Evaluate(binary.RightOperand, variable, types));
+                return And(Evaluate(binary.LeftOperand, variable, types, inOrder), () => Evaluate(binary.RightOperand, variable, types, inOrder), inOrder);
             case IBinaryOperation binary when binary.OperatorKind is BinaryOperatorKind.ConditionalOr or BinaryOperatorKind.Or:
-                return Or(Evaluate(binary.LeftOperand, variable, types), Evaluate(binary.RightOperand, variable, types));
+                return Or(Evaluate(binary.LeftOperand, variable, types, inOrder), () => Evaluate(binary.RightOperand, variable, types, inOrder), inOrder);
             case IIsTypeOperation isType when IsVariable(isType.ValueOperand, variable):
                 var test = TypeTest(isType.TypeOperand, types);
                 return isType.IsNegated ? Not(test) : test;
             case IIsPatternOperation isPattern when IsVariable(isPattern.Value, variable):
-                return EvaluatePattern(isPattern.Pattern, types);
+                return EvaluatePattern(isPattern.Pattern, types, inOrder);
+            case IBinaryOperation binary when inOrder && binary.OperatorMethod == null && binary.OperatorKind is BinaryOperatorKind.Equals or BinaryOperatorKind.NotEquals:
+                var equal = Equality(binary.LeftOperand, binary.RightOperand, variable, types);
+                return binary.OperatorKind == BinaryOperatorKind.Equals ? equal : Not(equal);
+            case IConditionalOperation conditional when inOrder && conditional.WhenFalse != null:
+                // 'c ? a : b' runs c, then one of a and b.
+                var condition = Evaluate(conditional.Condition, variable, types, inOrder);
+                return condition == Truth.Unknown ? Truth.Unknown : Evaluate(condition == Truth.True ? conditional.WhenTrue : conditional.WhenFalse, variable, types, inOrder);
+            case IIsPatternOperation boolPattern when inOrder && IsBoolean(boolPattern.Value):
+                return MatchBoolean(Evaluate(boolPattern.Value, variable, types, inOrder), boolPattern.Pattern);
             default:
                 return Truth.Unknown;
         }
     }
 
-    static Truth EvaluatePattern(IPatternOperation pattern, FlowTaskTypes types)
+    /// <summary>
+    /// 'a == b' (in order): of two bools, both known; of the catch variable and null, false (the exception is never null).
+    /// </summary>
+    static Truth Equality(IOperation left, IOperation right, ILocalSymbol variable, FlowTaskTypes types)
+    {
+        if (IsBoolean(left) && IsBoolean(right))
+        {
+            var l = Evaluate(left, variable, types, inOrder: true);
+            if (l == Truth.Unknown) return Truth.Unknown;
+            var r = Evaluate(right, variable, types, inOrder: true);
+            return r == Truth.Unknown ? Truth.Unknown : l == r ? Truth.True : Truth.False;
+        }
+
+        if ((IsVariable(left, variable) && IsNull(right)) || (IsNull(left) && IsVariable(right, variable))) return Truth.False;
+        return Truth.Unknown;
+    }
+
+    /// <summary>A bool, known or not, against a pattern: 'is true', 'is false', 'is not …' and '_'; others are unknown.</summary>
+    static Truth MatchBoolean(Truth value, IPatternOperation pattern) => pattern switch
+    {
+        IDiscardPatternOperation _ => Truth.True,
+        INegatedPatternOperation negated => Not(MatchBoolean(value, negated.Pattern)),
+        IConstantPatternOperation { Value.ConstantValue: { HasValue: true, Value: bool expected } } when value != Truth.Unknown =>
+            (value == Truth.True) == expected ? Truth.True : Truth.False,
+        _ => Truth.Unknown,
+    };
+
+    static bool IsBoolean(IOperation operation) => operation.Type?.SpecialType == SpecialType.System_Boolean;
+
+    static bool IsNull(IOperation operation)
+    {
+        while (operation is IConversionOperation conversion && conversion.IsImplicit) operation = conversion.Operand;
+        return operation.ConstantValue.HasValue && operation.ConstantValue.Value == null;
+    }
+
+    static Truth EvaluatePattern(IPatternOperation pattern, FlowTaskTypes types, bool inOrder)
     {
         switch (pattern)
         {
             case INegatedPatternOperation negated:
-                return Not(EvaluatePattern(negated.Pattern, types));
+                return Not(EvaluatePattern(negated.Pattern, types, inOrder));
             case IBinaryPatternOperation binary when binary.OperatorKind == BinaryOperatorKind.And:
-                return And(EvaluatePattern(binary.LeftPattern, types), EvaluatePattern(binary.RightPattern, types));
+                return And(EvaluatePattern(binary.LeftPattern, types, inOrder), () => EvaluatePattern(binary.RightPattern, types, inOrder), inOrder);
             case IBinaryPatternOperation binary when binary.OperatorKind == BinaryOperatorKind.Or:
-                return Or(EvaluatePattern(binary.LeftPattern, types), EvaluatePattern(binary.RightPattern, types));
+                return Or(EvaluatePattern(binary.LeftPattern, types, inOrder), () => EvaluatePattern(binary.RightPattern, types, inOrder), inOrder);
             case ITypePatternOperation typePattern:
                 return TypeTest(typePattern.MatchedType, types);
             case IDeclarationPatternOperation declaration:
@@ -201,11 +272,19 @@ internal static class CatchClassifier
 
     static Truth Not(Truth value) => value == Truth.True ? Truth.False : value == Truth.False ? Truth.True : Truth.Unknown;
 
-    static Truth And(Truth left, Truth right) =>
-        left == Truth.False || right == Truth.False ? Truth.False :
-        left == Truth.True && right == Truth.True ? Truth.True : Truth.Unknown;
+    /// <summary>'&amp;&amp;': false when either side is; in order, an unknown left side is the answer (what runs after it is not known).</summary>
+    static Truth And(Truth left, System.Func<Truth> right, bool inOrder)
+    {
+        if (left == Truth.False || (inOrder && left == Truth.Unknown)) return left;
+        var r = right();
+        return r == Truth.False ? Truth.False : left == Truth.True && r == Truth.True ? Truth.True : Truth.Unknown;
+    }
 
-    static Truth Or(Truth left, Truth right) =>
-        left == Truth.True || right == Truth.True ? Truth.True :
-        left == Truth.False && right == Truth.False ? Truth.False : Truth.Unknown;
+    /// <summary>'||': true when either side is; in order, an unknown left side is the answer.</summary>
+    static Truth Or(Truth left, System.Func<Truth> right, bool inOrder)
+    {
+        if (left == Truth.True || (inOrder && left == Truth.Unknown)) return left;
+        var r = right();
+        return r == Truth.True ? Truth.True : left == Truth.False && r == Truth.False ? Truth.False : Truth.Unknown;
+    }
 }

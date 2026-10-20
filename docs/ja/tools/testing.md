@@ -182,7 +182,7 @@ FlowAssert.NoLiveScopes(tw.World);   // every flow ended, nothing leaked
 | `ScopePathExists(world, path)` | ちょうどそのパス（`"Game > InGame > Battle"`）のスコープがある |
 | `ScopeIsWaitingOn(world, name, waitingFor)` | そのスコープの待ちの表示に `waitingFor` が含まれる |
 | `NoLiveScopes(world)` | 生きているスコープがない |
-| `CanSkipUnwinding(type)` | その型の async メソッドが、await を囲む `finally`、`using`、`foreach`、キャンセルを受け取る `catch` を持たない（`FlowWorld.SkipUnwinding` に渡してよい。[スコープとキャンセル](../guide/scopes-and-cancellation.md)）。メソッドの本体を読むので JIT と Mono で動き、NativeAOT と IL2CPP では `NotSupportedException` |
+| `CanSkipUnwinding(type)` | その型の async の FlowTask のメソッドが、await を囲む `finally`、`using`、`foreach`、キャンセルを受け取る `catch` を持たない（`FlowWorld.SkipUnwinding` に渡してよい。[スコープとキャンセル](../guide/scopes-and-cancellation.md)）。メソッドの本体を読むので JIT と Mono で動き、NativeAOT と IL2CPP では `NotSupportedException` |
 
 スコープの名前は、メソッド名か `Flow.Named` で付けた名前です。待ちの表示は [デバッグと診断](debugging.md)のダンプと同じです。
 

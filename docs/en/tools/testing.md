@@ -182,7 +182,7 @@ FlowAssert.NoLiveScopes(tw.World);   // every flow ended, nothing leaked
 | `ScopePathExists(world, path)` | A scope with exactly that path (`"Game > InGame > Battle"`) exists |
 | `ScopeIsWaitingOn(world, name, waitingFor)` | The scope's wait description contains `waitingFor` |
 | `NoLiveScopes(world)` | There are no live scopes |
-| `CanSkipUnwinding(type)` | The type's async methods have no `finally`, `using`, `foreach`, or `catch` that takes the cancellation, around an await (it can be passed to `FlowWorld.SkipUnwinding`; see [Scopes and cancellation](../guide/scopes-and-cancellation.md)). It reads the method bodies, so it works on the JIT and Mono, and throws `NotSupportedException` on NativeAOT and IL2CPP |
+| `CanSkipUnwinding(type)` | The type's async FlowTask methods have no `finally`, `using`, `foreach`, or `catch` that takes the cancellation, around an await (it can be passed to `FlowWorld.SkipUnwinding`; see [Scopes and cancellation](../guide/scopes-and-cancellation.md)). It reads the method bodies, so it works on the JIT and Mono, and throws `NotSupportedException` on NativeAOT and IL2CPP |
 
 A scope's name is the method name, or the name given with `Flow.Named`. The wait description is the same as in the dump in [Debugging and diagnostics](debugging.md).
 
