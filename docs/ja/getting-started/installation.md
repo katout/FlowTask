@@ -19,7 +19,7 @@ FlowTask を .NET、Unity、Godot のプロジェクトに入れる手順を説�
 ## .NET
 
 ```sh
-dotnet add package FlowTask --version 0.1.0-preview.1
+dotnet add package FlowTask --version 0.2.0-preview.1
 ```
 
 - 対象は netstandard2.1 と net10.0 です。net8.0 などのプロジェクトでは netstandard2.1 版が使われます。NativeAOT でも動きます。
@@ -28,10 +28,10 @@ dotnet add package FlowTask --version 0.1.0-preview.1
 任意のパッケージも同じように足します。
 
 ```sh
-dotnet add package FlowTask.Testing --version 0.1.0-preview.1
-dotnet add package FlowTask.Testing.NUnit --version 0.1.0-preview.1
-dotnet add package FlowTask.UniTask --version 0.1.0-preview.1
-dotnet add package FlowTask.R3 --version 0.1.0-preview.1
+dotnet add package FlowTask.Testing --version 0.2.0-preview.1
+dotnet add package FlowTask.Testing.NUnit --version 0.2.0-preview.1
+dotnet add package FlowTask.UniTask --version 0.2.0-preview.1
+dotnet add package FlowTask.R3 --version 0.2.0-preview.1
 ```
 
 | パッケージ | 依存として入るもの |
@@ -66,8 +66,8 @@ URL の末尾に `#` とタグ（かコミット）を付けると、その版�
 ```json
 {
   "dependencies": {
-    "com.katout.flowtask": "https://github.com/katout/FlowTask.git?path=src/FlowTask#v0.1.0-preview.1",
-    "com.katout.flowtask.unity": "https://github.com/katout/FlowTask.git?path=src/FlowTask.Unity#v0.1.0-preview.1"
+    "com.katout.flowtask": "https://github.com/katout/FlowTask.git?path=src/FlowTask#v0.2.0-preview.1",
+    "com.katout.flowtask.unity": "https://github.com/katout/FlowTask.git?path=src/FlowTask.Unity#v0.2.0-preview.1"
   }
 }
 ```
@@ -121,11 +121,11 @@ Godot 4.4.1 以降の .NET 版で使えます。ゲームの `.csproj` に `Flow
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="FlowTask.Godot" Version="0.1.0-preview.1" />
+  <PackageReference Include="FlowTask.Godot" Version="0.2.0-preview.1" />
 </ItemGroup>
 ```
 
-`dotnet add package FlowTask.Godot --version 0.1.0-preview.1` でも同じです。
+`dotnet add package FlowTask.Godot --version 0.2.0-preview.1` でも同じです。
 
 | | 対応 |
 |---|---|

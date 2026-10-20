@@ -7,6 +7,8 @@ without a deprecation period; every break is listed here.
 
 ## [Unreleased]
 
+## [0.2.0-preview.1] - 2026-10-20
+
 ### Added
 
 - `FlowHandle.ResumeCount` and `FlowHandle<T>.ResumeCount`: how many times the task's async method has resumed after an await suspended it (the resume at which a canceled method unwinds, or ends for a `SkipUnwinding` type, included; the start and awaits that don't suspend excluded). The same flows given the same Ticks (and the same completions and cancellations from other threads) give the same count, so a game can hash it into its state; 0 for a wait, a combinator or a handle with no task. Counting and reading it allocate nothing.
@@ -47,5 +49,6 @@ First public release.
 - Nothing has run on Android or iOS devices or on WebGL: the Unity tests run in the Editor and in Windows players,
   and the Android IL2CPP player is only built.
 
-[Unreleased]: https://github.com/katout/FlowTask/compare/v0.1.0-preview.1...HEAD
+[Unreleased]: https://github.com/katout/FlowTask/compare/v0.2.0-preview.1...HEAD
+[0.2.0-preview.1]: https://github.com/katout/FlowTask/compare/v0.1.0-preview.1...v0.2.0-preview.1
 [0.1.0-preview.1]: https://github.com/katout/FlowTask/releases/tag/v0.1.0-preview.1

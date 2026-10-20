@@ -1,6 +1,6 @@
 {
   "name": "com.katout.flowtask.unity",
-  "version": "0.1.0-preview.1",
+  "version": "0.2.0-preview.1",
   "displayName": "FlowTask for Unity",
   "description": "Unity integration for FlowTask: PlayerLoop driver for the default World (a Tick at the start of Update, configurable flush points), UnityEvent -> Signal, AsyncOperation / Awaitable -> FlowTask bridges, GameObject lifetime binding, optional uGUI helpers and a Scope Tree editor window.",
   "unity": "2023.1",
@@ -17,7 +17,7 @@
     "structured concurrency"
   ],
   "dependencies": {
-    "com.katout.flowtask": "0.1.0-preview.1"
+    "com.katout.flowtask": "0.2.0-preview.1"
   },
   "samples": [
     {

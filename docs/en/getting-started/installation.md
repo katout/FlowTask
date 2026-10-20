@@ -19,7 +19,7 @@ All dependencies point to the core, and the core depends on no other package. Th
 ## .NET
 
 ```sh
-dotnet add package FlowTask --version 0.1.0-preview.1
+dotnet add package FlowTask --version 0.2.0-preview.1
 ```
 
 - The targets are netstandard2.1 and net10.0. Projects such as net8.0 use the netstandard2.1 build. It also works with NativeAOT.
@@ -28,10 +28,10 @@ dotnet add package FlowTask --version 0.1.0-preview.1
 Add the optional packages the same way.
 
 ```sh
-dotnet add package FlowTask.Testing --version 0.1.0-preview.1
-dotnet add package FlowTask.Testing.NUnit --version 0.1.0-preview.1
-dotnet add package FlowTask.UniTask --version 0.1.0-preview.1
-dotnet add package FlowTask.R3 --version 0.1.0-preview.1
+dotnet add package FlowTask.Testing --version 0.2.0-preview.1
+dotnet add package FlowTask.Testing.NUnit --version 0.2.0-preview.1
+dotnet add package FlowTask.UniTask --version 0.2.0-preview.1
+dotnet add package FlowTask.R3 --version 0.2.0-preview.1
 ```
 
 | Package | Installed as dependencies |
@@ -66,8 +66,8 @@ Add `#` and a tag (or a commit) to the end of the URL to pin that version. Use t
 ```json
 {
   "dependencies": {
-    "com.katout.flowtask": "https://github.com/katout/FlowTask.git?path=src/FlowTask#v0.1.0-preview.1",
-    "com.katout.flowtask.unity": "https://github.com/katout/FlowTask.git?path=src/FlowTask.Unity#v0.1.0-preview.1"
+    "com.katout.flowtask": "https://github.com/katout/FlowTask.git?path=src/FlowTask#v0.2.0-preview.1",
+    "com.katout.flowtask.unity": "https://github.com/katout/FlowTask.git?path=src/FlowTask.Unity#v0.2.0-preview.1"
   }
 }
 ```
@@ -121,11 +121,11 @@ FlowTask works with the .NET edition of Godot 4.4.1 and later. Add `FlowTask.God
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="FlowTask.Godot" Version="0.1.0-preview.1" />
+  <PackageReference Include="FlowTask.Godot" Version="0.2.0-preview.1" />
 </ItemGroup>
 ```
 
-`dotnet add package FlowTask.Godot --version 0.1.0-preview.1` does the same.
+`dotnet add package FlowTask.Godot --version 0.2.0-preview.1` does the same.
 
 | | Supported |
 |---|---|

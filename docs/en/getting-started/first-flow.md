@@ -20,7 +20,7 @@ You don't need an engine. This page assumes a project created by `dotnet new con
 ```sh
 dotnet new console -n FirstFlow
 cd FirstFlow
-dotnet add package FlowTask --version 0.1.0-preview.1
+dotnet add package FlowTask --version 0.2.0-preview.1
 ```
 
 From here on, you'll rewrite the contents of `Program.cs`.

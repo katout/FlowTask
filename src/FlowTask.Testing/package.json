@@ -1,6 +1,6 @@
 {
   "name": "com.katout.flowtask.testing",
-  "version": "0.1.0-preview.1",
+  "version": "0.2.0-preview.1",
   "displayName": "FlowTask Testing",
   "description": "Engine-free testing for FlowTask: TestWorld, virtual time (TickFrames, TickFor, RunUntilComplete), scope tree assertions and the determinism probe. Reference the FlowTask.Testing assembly from a test assembly; it compiles only where tests are included (UNITY_INCLUDE_TESTS). List the package in the project's \"testables\" (Packages/manifest.json); otherwise Unity does not compile it (see https://katout.github.io/FlowTask/en/tools/testing/).",
   "unity": "2023.1",
@@ -17,6 +17,6 @@
     "structured concurrency"
   ],
   "dependencies": {
-    "com.katout.flowtask": "0.1.0-preview.1"
+    "com.katout.flowtask": "0.2.0-preview.1"
   }
 }

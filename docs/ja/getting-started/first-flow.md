@@ -20,7 +20,7 @@ Start! (Enter)
 ```sh
 dotnet new console -n FirstFlow
 cd FirstFlow
-dotnet add package FlowTask --version 0.1.0-preview.1
+dotnet add package FlowTask --version 0.2.0-preview.1
 ```
 
 以下では、`Program.cs` の中身を書き換えていきます。
