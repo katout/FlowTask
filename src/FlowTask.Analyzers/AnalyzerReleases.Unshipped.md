@@ -15,3 +15,5 @@ FLOW007 | FlowTask | Warning | GetAwaiter() of a FlowTask awaitable called in co
 FLOW008 | FlowTask | Warning | Handle of Flow.Spawn dropped by a statement (the child ends with the current scope)
 FLOW009 | FlowTask | Warning | Flow.Spawn in an event handler written in a FlowTask method
 FLOW010 | FlowTask | Warning | Await in a finally block (or a catch that rethrows) of a FlowTask method without Flow.NonCancelable
+FLOW011 | FlowTask | Error | Type passed to FlowWorld.SkipUnwinding has a finally, using, disposing foreach, await foreach or cancellation-taking catch around an await
+FLOW012 | FlowTask | Warning | Type passed to FlowWorld.SkipUnwinding cannot be checked by the analyzer (not typeof, or no source)

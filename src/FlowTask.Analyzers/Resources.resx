@@ -226,4 +226,28 @@
     <value>Await it with Flow.NonCancelable (only for cleanup that ends by itself)</value>
     <comment>FLOW010 (NonCancelableCodeFixProvider).</comment>
   </data>
+  <data name="Flow011Title" xml:space="preserve">
+    <value>Pass to FlowWorld.SkipUnwinding only types without cleanup around an await</value>
+  </data>
+  <data name="Flow011Description" xml:space="preserve">
+    <value>Canceled in a World, the async methods of a type passed to its SkipUnwinding end at the await they wait at without throwing FlowCanceledException, so the blocks around that await that unwinding would run do not run: a finally block, the disposal of a using statement or declaration, of a foreach enumerator and of an await foreach, and a catch clause that takes the cancellation. Reported where FlowWorld.SkipUnwinding is passed typeof(T) of a type whose source has such a block around an await, in an async method of the type, a lambda or a local function in it (in any part of a partial type, and for a generic type, in its definition): a finally block or a using around an await, a 'using var' before one, a foreach around one that disposes its enumerator (not over an array or a string), any await foreach, and a catch clause around one that may take FlowCanceledException. A catch of a type parameter counts whatever its constraints, and a 'when' filter passes only when it is known to be false for FlowCanceledException in the order it runs ('e is not FlowCanceledException' before any call). Not reported: an await in a catch or finally block itself (unless another block is around that block), a block without an await inside, and the named types nested in the type, which are types of their own. This is the same judgement as FlowAssert.CanSkipUnwinding (FlowTask.Testing), which reads the compiled code in a test. Move the methods with cleanup to another type, or do not pass the type.</value>
+  </data>
+  <data name="Flow011Message" xml:space="preserve">
+    <value>'{0}' is passed to FlowWorld.SkipUnwinding, but it has a block around an await that unwinding would run (finally, using, a foreach that disposes, await foreach, or a catch that may take FlowCanceledException) in {1}, which a method canceled without unwinding does not run; move that code to another type, or do not pass this one</value>
+    <comment>Message of Descriptors.SkipUnwindingTypeHasCleanup. {0}: the type. {1}: the methods, local functions and the members lambdas are written in, quoted and separated by commas.</comment>
+  </data>
+  <data name="Flow012Title" xml:space="preserve">
+    <value>Check a type the analyzer cannot read with FlowAssert.CanSkipUnwinding</value>
+  </data>
+  <data name="Flow012Description" xml:space="preserve">
+    <value>The analyzer checks the type passed to FlowWorld.SkipUnwinding (FLOW011) only when the call names it with typeof and its source is in the compilation. Reported where FlowWorld.SkipUnwinding is passed something else: a variable, a call, typeof of a type parameter, or typeof of a type declared in another assembly. Assert the type in a test with FlowAssert.CanSkipUnwinding (FlowTask.Testing), which reads the compiled code on the JIT and Mono, and suppress the warning there. Not reported for null, which throws ArgumentNullException.</value>
+  </data>
+  <data name="Flow012MessageNotWritten" xml:space="preserve">
+    <value>The analyzer cannot see which type this passes to FlowWorld.SkipUnwinding (it is not written as typeof of a type), so it cannot check its cleanup around awaits; assert the types with FlowAssert.CanSkipUnwinding in a test</value>
+    <comment>Message of Descriptors.SkipUnwindingTypeNotWritten.</comment>
+  </data>
+  <data name="Flow012MessageWithoutSource" xml:space="preserve">
+    <value>'{0}' is declared in another assembly, so the analyzer cannot check its cleanup around awaits for FlowWorld.SkipUnwinding; assert it with FlowAssert.CanSkipUnwinding in a test</value>
+    <comment>Message of Descriptors.SkipUnwindingTypeWithoutSource. {0}: the type.</comment>
+  </data>
 </root>

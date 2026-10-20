@@ -105,7 +105,7 @@ world.SkipUnwinding(typeof(EnemyFlows));
 ```
 
 - 終わり方は巻き戻すときと同じです。状態（`Canceled`、子の失敗を運ぶ取り消しなら `Faulted`）、`CancelCause`、報告、子が先に終わる順、`Flow.AddCleanup` と `Flow.Own` の後始末は変わりません。`Flow.NonCancelable` の await は終わるまで待ち、その後のコードは次の await まで走ります。
-- 変わるのは、await を囲む `finally`、`using`、`foreach`（Dispose する列挙子）と、キャンセルを受け取る `catch` が走らないことだけです。そうした区間を持つ型は渡さないでください。渡してよいかは、テストで `FlowAssert.CanSkipUnwinding(typeof(T))`（FlowTask.Testing）が確かめます。コンパイルされたメソッドの本体を読むので、JIT と Mono（Unity のエディタ）で動き、NativeAOT と IL2CPP では `NotSupportedException` を投げます。`SkipUnwinding` 自身は確かめません。
+- 変わるのは、await を囲む `finally`、`using`、`foreach`（Dispose する列挙子）と、キャンセルを受け取る `catch` が走らないことだけです。そうした区間を持つ型は渡さないでください。渡してよいかは、テストで `FlowAssert.CanSkipUnwinding(typeof(T))`（FlowTask.Testing）が確かめます。コンパイルされたメソッドの本体を読むので、JIT と Mono（Unity のエディタ）で動き、NativeAOT と IL2CPP では `NotSupportedException` を投げます。`SkipUnwinding` 自身は実行時に確かめません。`typeof` で渡した型は、アナライザのルール [FLOW011](../tools/analyzers.md#flow011) がコンパイル時に同じ判定で確かめます。変数で渡した型と別のアセンブリで宣言された型は警告 [FLOW012](../tools/analyzers.md#flow012) になり、テストの照合だけが確かめます。
 - await を囲まない区間（中に await のない `try`/`finally` や `foreach`）と、キャンセルを受け取らない型の `catch` は問題ありません。キャンセルは await でしか起きないためです。FLOW001 の勧める `catch (Exception e) when (e is not FlowCanceledException)` もキャンセルを受け取らないので、照合を通ります。照合は、フィルタが `FlowCanceledException` を外すと型の判定だけで分かる時に通し、ほかの条件を先に見るフィルタ（メソッドの呼び出しやフィールドを読む形）は、キャンセルを受け取るかもしれないので通しません。
 - ジェネリック型は、型引数によらずすべての構築型に効きます。
 

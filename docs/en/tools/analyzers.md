@@ -14,6 +14,8 @@ FlowTask comes with Roslyn analyzers that find, at compile time, code that goes 
 | [FLOW008](#flow008) | Warning | `Flow.Spawn(...)` whose return value isn't used | Yes |
 | [FLOW009](#flow009) | Warning | `Flow.Spawn` in an event handler inside a FlowTask method | No |
 | [FLOW010](#flow010) | Warning | An `await` without `Flow.NonCancelable` inside `finally` (and inside a `catch` that passes its exception on) | Yes |
+| [FLOW011](#flow011) | Error | A type passed to `FlowWorld.SkipUnwinding` has a `finally`, `using`, `foreach` or a `catch` that takes the cancellation around an `await` | No |
+| [FLOW012](#flow012) | Warning | A type passed to `FlowWorld.SkipUnwinding` that the analyzer can't read (not `typeof`, or from another assembly) | No |
 
 Code that certainly won't work as written is an **error**, code that is usually a mistake but is sometimes intended is a **warning**, and suggestions on how to write things are **info**. You can change the severity ([Changing severity](#changing-severity)). Every rule is in the `FlowTask` category. The help links of the diagnostics in your IDE point to the sections of this page.
 
@@ -567,6 +569,103 @@ async FlowTask<Choice> Confirm()
 ### Code fix
 
 "Await it with Flow.NonCancelable (only for cleanup that ends by itself)": rewrites `await x` to `await Flow.NonCancelable(x)`. Wrapping a wait for input creates a hang, so there is no fix-all. Choose them one at a time.
+
+---
+
+<a id="flow011"></a>
+## FLOW011: Pass to FlowWorld.SkipUnwinding only types without cleanup around an await (Error)
+
+### What it detects
+
+A call of `FlowWorld.SkipUnwinding(typeof(T))` where the source of `T` has one of the following around an `await`, in an async method of `T` or in a lambda or local function written in one (in every part of a `partial` type; for a generic type, in its definition):
+
+- A `finally` whose `try` block contains the `await`, and a `catch` block that awaits in a `try` statement with a `finally`.
+- A `using` statement around the `await`, a `using var` declaration before it in the same block, and the same with `await using`.
+- A `foreach` around the `await` whose enumerator is disposed. A `foreach` over an array or a `string` (the compiler writes a loop over the elements) and one whose enumerator is a struct or a sealed class without `Dispose` aren't reported.
+- Every `await foreach`.
+- A `catch` around the `await` that may receive `FlowCanceledException`: `catch`, `catch (Exception)`, `catch (OperationCanceledException)`, `catch (FlowCanceledException)`, a `catch (TEx)` of a type parameter whatever its constraints, and a `when` filter that isn't known to be false for `FlowCanceledException`. A filter passes when, read in the order it runs, its type tests make it false: `when (e is not FlowCanceledException)`, `when (!(e is OperationCanceledException))`, `when (e is not FlowCanceledException && Log(e))`. A filter that calls or reads a field first (`when (Log(e) && e is not FlowCanceledException)`), and one that combines with `&` or `|`, are reported.
+
+Not reported: an `await` inside a `catch` or `finally` block itself (the compiler moves it out of its `try` statement), blocks without an `await` inside, and the named types nested in `T`, which are types of their own (pass them separately). The rule also analyzes generated code, where a source generator may write the calls.
+
+### Why
+
+Canceled in that World, the async methods of a type passed to `SkipUnwinding` end at the `await` they wait at without throwing `FlowCanceledException` ([Scopes and cancellation](../guide/scopes-and-cancellation.md)). The blocks around that `await` that unwinding would run then don't run: a `finally` doesn't release, a `using` doesn't dispose, a `catch` doesn't log. Nothing checks this at run time. `FlowAssert.CanSkipUnwinding` (FlowTask.Testing) checks it in a test by reading the compiled code, and this rule makes the same judgement at compile time, so a forgotten test doesn't let it through. Both are tested against the same list of shapes.
+
+### Bad example
+
+```csharp
+static class EnemyFlows
+{
+    public static async FlowTask Patrol(Enemy enemy)
+    {
+        using var path = enemy.ReservePath();
+        await FlowTask.WaitForSeconds(1); // canceled here without unwinding: the path is never released
+    }
+}
+
+world.SkipUnwinding(typeof(EnemyFlows)); // FLOW011
+```
+
+### Fixed example
+
+```csharp
+static class EnemyFlows
+{
+    public static async FlowTask Patrol(Enemy enemy)
+    {
+        var path = enemy.ReservePath();
+        Flow.AddCleanup(path.Dispose); // runs when the scope ends, also without unwinding
+        await FlowTask.WaitForSeconds(1);
+    }
+}
+
+world.SkipUnwinding(typeof(EnemyFlows));
+```
+
+Or move the methods that need the block to a type you don't pass.
+
+### Code fix
+
+There is no code fix.
+
+---
+
+<a id="flow012"></a>
+## FLOW012: Check a type the analyzer cannot read with FlowAssert.CanSkipUnwinding (Warning)
+
+### What it detects
+
+A call of `FlowWorld.SkipUnwinding` whose argument isn't `typeof` of a type with its source in the compilation: a variable, a method call, `typeof(T)` of a type parameter, and `typeof` of a type declared in another assembly (a DLL or a package). `null` isn't reported.
+
+### Why
+
+[FLOW011](#flow011) can check a type only when the call names it and its source can be read. For the others, the check is `FlowAssert.CanSkipUnwinding(type)` in a test, which reads the compiled code on the JIT and Mono (.NET tests and the Unity editor). Write `typeof` at each call where you can; otherwise write that test, and suppress the warning at the call with the reason.
+
+### Example
+
+```csharp
+static readonly Type[] Skipped = { typeof(EnemyFlows), typeof(BulletFlows) };
+
+public static void Register(FlowWorld world)
+{
+    foreach (var type in Skipped)
+    {
+#pragma warning disable FLOW012 // SkipTests checks every type of Skipped with FlowAssert.CanSkipUnwinding
+        world.SkipUnwinding(type);
+#pragma warning restore FLOW012
+    }
+}
+
+[Test]
+public void SkippedTypesCanSkipUnwinding()
+{
+    foreach (var type in Skipped) FlowAssert.CanSkipUnwinding(type);
+}
+```
+
+### Code fix
+
+There is no code fix.
 
 ---
 

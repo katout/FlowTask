@@ -23,6 +23,8 @@ public class GeneralTests
         ["FLOW008"] = DiagnosticSeverity.Warning,
         ["FLOW009"] = DiagnosticSeverity.Warning,
         ["FLOW010"] = DiagnosticSeverity.Warning,
+        ["FLOW011"] = DiagnosticSeverity.Error,
+        ["FLOW012"] = DiagnosticSeverity.Warning,
     };
 
     [Test]
