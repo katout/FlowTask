@@ -132,6 +132,7 @@ if (download.IsCompleted && download.Status == FlowStatus.Succeeded) ShowDone();
 | `Cancel()` | Cancels the task and its descendants. Callable from any thread |
 | `CancelCause` | Whether cancellation was requested, and why |
 | `Exception` | The exception that ended the task, when it ended with one (`Faulted`). Otherwise null |
+| `ResumeCount` | How many times the async method has resumed after an await suspended it |
 | `Result` | The value when it succeeded (`FlowHandle<T>`). Throws otherwise |
 | `Join()` | A `FlowTask` that waits until the task ends. Usable only once per handle |
 | `AsTask()` | A `Task` for code outside flows to wait on |
@@ -140,6 +141,7 @@ if (download.IsCompleted && download.Status == FlowStatus.Succeeded) ShowDone();
 - `Join()` throws `FlowJoinException` when the other task ends by cancellation or by an exception. When it ended by an exception, that exception is the `InnerException`. Joining a handle that never started (a Spawn refused in a canceled scope, or a default handle) throws a `FlowJoinException` whose message says it was never started. To wait regardless of how it ends, use `await FlowTask.WaitUntil(handle, h => h.IsCompleted)` and then check `Status`.
 - Joining one handle twice makes the second await throw `FlowMisuseException`. A Join that lost a Race and was unwound also counts as one. To wait again, use `WaitUntil`.
 - After you cancel, `Status` stays `Running` until the cleanup (awaits in `finally`, and so on) has finished. If `CancelCause` is anything other than `None`, the task is in the middle of closing ([Scopes and cancellation](scopes-and-cancellation.md)).
+- `ResumeCount` counts the times the async method was suspended at an await and continued from it. The resume at which a canceled method throws `FlowCanceledException` (or, for a type passed to `FlowWorld.SkipUnwinding`, ends there) counts as one. The start doesn't count, nor does an await that didn't suspend (an await of a task that ends at once). The same flows given the same Ticks resume the same number of times. The value stays after the task has ended. It is 0 for a wait or combinator (such as `Flow.Spawn(FlowTask.DelayFrames(2))`) and for a handle with no task. Read it on the World's thread.
 - `Join()` is an ordinary FlowTask, so you can compose it, as in `FlowTask.Race(handle.Join(), FlowTask.WaitForSeconds(5))` ([Composition](composition.md)).
 - Joining yourself or an ancestor would never end, so it throws `FlowMisuseException`. Flows joining each other in a cycle are not detected. If things get stuck, look for it in the dump ([Debugging](../tools/debugging.md)).
 
