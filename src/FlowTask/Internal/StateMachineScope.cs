@@ -13,6 +13,12 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
     double _parkTarget;
     double _parkAmount;
 
+    /// <summary>
+    /// The resumes of the method: the times the scheduler continued it after an await that suspended it, the one at which
+    /// a canceled method throws FlowCanceledException (or, skipping its unwinding, ends) included. Its start is none.
+    /// </summary>
+    internal long ResumeCount;
+
     protected StateMachineScope()
     {
         Traits = NodeTraits.StateMachine;
@@ -30,6 +36,7 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
     /// <summary>Runs the state machine to its next suspension, as the current scope.</summary>
     internal void Run()
     {
+        ResumeCount++;
         var world = World;
         var prevWorld = FlowWorld.t_current;
         if (ReferenceEquals(prevWorld, world))
@@ -305,6 +312,7 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
     /// </summary>
     void RunWithoutUnwinding()
     {
+        ResumeCount++;
         var world = World;
         var prevWorld = FlowWorld.t_current;
         FlowWorld.t_current = world;
@@ -436,6 +444,7 @@ internal sealed class FlowMethodScope<TStateMachine, T> : StateMachineScope<T>
     protected override void ReturnToPool()
     {
         StateMachine = default;
+        ResumeCount = 0;
         s_pool.Return(this);
     }
 }
