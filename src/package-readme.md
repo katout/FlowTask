@@ -10,13 +10,13 @@ of the code instead of hand-passed cancellation tokens. The same core runs on .N
 Every FlowTask package on NuGet carries this same description. Each one is added the same way; for the core:
 
 ```sh
-dotnet add package FlowTask --version 0.1.0-preview.1
+dotnet add package FlowTask --version 0.2.0-preview.1
 ```
 
 The namespace is `Katout.FlowTask`. The core targets netstandard2.1 and net10.0 and carries the FLOW analyzers with
 their code fixes. For Godot 4 (.NET), add `FlowTask.Godot` instead; it brings `FlowTask` with it. The other packages
 (listed below) are added next to the core in the same way, for example
-`dotnet add package FlowTask.Testing --version 0.1.0-preview.1`.
+`dotnet add package FlowTask.Testing --version 0.2.0-preview.1`.
 
 ## Example
 
