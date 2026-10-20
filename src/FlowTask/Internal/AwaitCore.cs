@@ -159,7 +159,7 @@ internal static class AwaitCore
                     break;
                 }
 
-                continuation();
+                scope.ResumeToUnwind();
                 break;
             default:
                 throw new FlowMisuseException("This awaiter has already completed (IsCompleted is true): call GetResult instead of registering a continuation.");
@@ -170,7 +170,7 @@ internal static class AwaitCore
     /// FlowCanceledException reaches the scope's code: the first time begins the unwinding. Again, it cuts an await of the
     /// scope's catch or finally blocks, which happens only while World.Dispose ends the flows.
     /// </summary>
-    static void MarkUnwinding(FlowNode scope)
+    internal static void MarkUnwinding(FlowNode scope)
     {
         if ((scope.Flags & NodeFlags.UnwindBegun) == 0)
         {
@@ -256,7 +256,7 @@ internal static class AwaitCore
     /// exception thrown at the await. Out of line: every await inlines PrepareUnwind.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    static bool UnwindAtAwait(AwaitMode mode, FlowNode node, FlowNode scope)
+    internal static bool UnwindAtAwait(AwaitMode mode, FlowNode node, FlowNode scope)
     {
         if ((node.Flags & NodeFlags.NonCancelable) != 0)
         {

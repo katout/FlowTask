@@ -199,6 +199,7 @@ internal static class HotPath
         "FromResult x100", "Subscription.Next x100", "Race(sub loses) x100",
         "FlowProperty.Set x100", "Signal.Emit (no receiver) x100", "FromCallback x100", "Join depth=10 x100", "Join depth=50 x100",
         "WhenAll(list 4) x100", "Idle waits x10000", "NextFrame x100 + idle x10000",
+        "Cancel 10000 flows", "Cancel 10000 flows (SkipUnwinding)",
     };
 
     /// <summary>
@@ -251,6 +252,8 @@ internal static class HotPath
             case "WhenAll(list 4) x100": PerFlow(name, WhenAllListLoop, emit: false); break;
             case "Idle waits x10000": IdleScenario(name, withNextFrame: false); break;
             case "NextFrame x100 + idle x10000": IdleScenario(name, withNextFrame: true); break;
+            case "Cancel 10000 flows": CancelManyScenario(name, skipUnwinding: false); break;
+            case "Cancel 10000 flows (SkipUnwinding)": CancelManyScenario(name, skipUnwinding: true); break;
             default: throw new ArgumentException("Unknown scenario: " + name);
         }
     }
@@ -289,6 +292,48 @@ internal static class HotPath
             h.Cancel();
             w.Flush();
         }), "ns/tree");
+    }
+
+    /// <summary>
+    /// A flow that has spawned <see cref="CancelFlows.Count"/> children waiting on frames is canceled: the time of the
+    /// Cancel and of the Flush that unwinds them, per child, and the bytes they allocate. Starting them is not timed.
+    /// With <paramref name="skipUnwinding"/>, the World skips the unwinding of their type (FlowWorld.SkipUnwinding, called
+    /// through reflection so that the scenario also builds against a version without it, which then unwinds).
+    /// </summary>
+    static void CancelManyScenario(string name, bool skipUnwinding)
+    {
+        using var w = new FlowWorld();
+        if (skipUnwinding) typeof(FlowWorld).GetMethod("SkipUnwinding", new[] { typeof(Type) })?.Invoke(w, new object[] { typeof(CancelFlows) });
+        long bytes = 0;
+        double Round()
+        {
+            var h = w.Run(CancelFlows.Owner());
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var sw = Stopwatch.StartNew();
+            h.Cancel();
+            w.Flush();
+            sw.Stop();
+            bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            return sw.Elapsed.TotalMilliseconds;
+        }
+
+        var warm = Stopwatch.StartNew();
+        do Round();
+        while (warm.ElapsedMilliseconds < 500);
+        var best = double.MaxValue;
+        var bestBytes = 0L;
+        for (var r = 0; r < Rounds; r++)
+        {
+            var ms = Round();
+            if (ms < best)
+            {
+                best = ms;
+                bestBytes = bytes;
+            }
+        }
+
+        Report(name, best * 1e6 / CancelFlows.Count, "ns/flow");
+        Report(name + " bytes", (double)bestBytes / CancelFlows.Count, "B/flow");
     }
 
     static void FromResultScenario(string name)
@@ -390,4 +435,18 @@ internal static class HotPath
 
     static void Report(string name, double ns, string unit) =>
         Console.WriteLine(name + ": " + ns.ToString("F1", CultureInfo.InvariantCulture) + " " + unit);
+}
+
+/// <summary>The flows of the "Cancel 10000 flows" scenarios: no block around an await that unwinding would run.</summary>
+internal static class CancelFlows
+{
+    internal const int Count = 10000;
+
+    static async FlowTask Wait() => await FlowTask.DelayFrames(int.MaxValue);
+
+    internal static async FlowTask Owner()
+    {
+        for (var i = 0; i < Count; i++) _ = Flow.Spawn(Wait());
+        await FlowTask.Never();
+    }
 }

@@ -268,7 +268,102 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
 
         // A parked wait keeps its flag: its GetResult throws FlowCanceledException.
         if ((Flags & NodeFlags.ParkedWait) != 0) World.TickList.Remove(this);
-        if (RunDepth == 0) Run();
+        if (RunDepth != 0) return;
+        if (SkipsUnwinding && ThrowsAtResume()) RunWithoutUnwinding();
+        else Run();
+    }
+
+    internal override void ResumeToUnwind()
+    {
+        if (SkipsUnwinding) RunWithoutUnwinding();
+        else Run();
+    }
+
+    /// <summary>The method's type was passed to FlowWorld.SkipUnwinding: canceled, it ends at its await without unwinding.</summary>
+    // The set first: without SkipUnwinding, a cancellation costs one field read more.
+    bool SkipsUnwinding => World.SkipUnwindingTypes is { } types && SourceType is { } declaring && types.Contains(declaring);
+
+    /// <summary>
+    /// Whether the await the canceled scope is suspended at throws FlowCanceledException when it resumes: all but a
+    /// Flow.NonCancelable await whose task ended without being canceled, which takes its result (not while World.Dispose
+    /// ends the flows). A scope suspended at an await that started nothing (one in a scope already canceled) has no
+    /// awaited node of its own.
+    /// </summary>
+    bool ThrowsAtResume()
+    {
+        if ((Flags & NodeFlags.ParkedWait) != 0 || Rethrown is { Pending: true }) return true;
+        var a = Awaiting;
+        if (a == null || a.Token != AwaitingToken) return true;
+        if (!a.IsTerminated) return false;
+        return (a.Flags & NodeFlags.NonCancelable) == 0 || World.IsDisposing || a.State == NodeState.Canceled;
+    }
+
+    /// <summary>
+    /// <see cref="Run"/> for a scope that skips unwinding: as the current scope, it does what the await's GetResult does
+    /// before it throws FlowCanceledException, then ends as that exception would have ended it, without running the
+    /// method.
+    /// </summary>
+    void RunWithoutUnwinding()
+    {
+        var world = World;
+        var prevWorld = FlowWorld.t_current;
+        FlowWorld.t_current = world;
+        var prevScope = world.CurrentScope;
+        world.CurrentScope = this;
+        world.ExecutionDepth++;
+        world.RunningStack.Push(this);
+        RunDepth++;
+        PendingAwait = AwaitKind.None;
+        Flags &= ~NodeFlags.ResumeQueued;
+        try
+        {
+            EndAtAwait();
+        }
+        finally
+        {
+            RunDepth--;
+            world.RunningStack.Pop();
+            world.CurrentScope = prevScope;
+            if (RunDepth == 0 && (Flags & NodeFlags.ReleasePending) != 0)
+            {
+                Flags &= ~NodeFlags.ReleasePending;
+                Release();
+            }
+
+            world.ExecutionDepth--;
+            FlowWorld.t_current = prevWorld;
+        }
+    }
+
+    /// <summary>
+    /// What the await's GetResult does before it throws FlowCanceledException (AwaitCore.EndPark, EndFailedPark and
+    /// PrepareUnwind), then the end OnSetException gives the scope for that exception.
+    /// </summary>
+    void EndAtAwait()
+    {
+        var a = Awaiting;
+        if ((Flags & NodeFlags.ParkedWait) != 0)
+        {
+            Flags &= ~NodeFlags.ParkedWait;
+            AwaitCore.MarkUnwinding(this);
+        }
+        else if (Rethrown is { Pending: true } fault)
+        {
+            fault.Pending = false;
+            Rethrown = null;
+            World.Reporter.ReportUndelivered(fault.Info);
+            AwaitCore.MarkUnwinding(this);
+        }
+        else if (a != null && a.Token == AwaitingToken)
+        {
+            AwaitCore.UnwindAtAwait(AwaitMode.Pending, a, this);
+        }
+        else
+        {
+            AwaitCore.MarkUnwinding(this);
+        }
+
+        TerminateCanceled();
     }
 
     internal override string DescribeWait()

@@ -40,6 +40,7 @@ internal static class Program
         Run("Unhandled exception reaches FlowWorld.OnUnhandledException", Scenarios.UnhandledException);
         Run("Unbridged await is an unhandled exception (awaiter type check)", Scenarios.UnbridgedAwait);
         Run("Dump (scope names, declaring types and method names from state-machine types)", Scenarios.Dump);
+        Run("SkipUnwinding: the same end without FlowCanceledException", SkipUnwindingScenario.Run);
 
         Console.WriteLine();
         Console.WriteLine("-- steady-state allocation (last 2 of 8 rounds must be 0 bytes)");

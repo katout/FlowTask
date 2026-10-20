@@ -88,9 +88,9 @@ public static class WorldTestExtensions
 }
 
 /// <summary>
-/// Scope-tree assertions for tests. Tree access is allowed in tests (game logic has no API that searches the scope
-/// tree). Every member throws <see cref="FlowAssertionException"/> (with the dump) when the assertion fails, so a call
-/// is a complete check.
+/// Assertions for tests: the scope tree, and the types passed to FlowWorld.SkipUnwinding. Tree access is allowed in
+/// tests (game logic has no API that searches the scope tree). Every member throws
+/// <see cref="FlowAssertionException"/> (with the dump) when the assertion fails, so a call is a complete check.
 /// </summary>
 public static class FlowAssert
 {
@@ -137,6 +137,24 @@ public static class FlowAssert
         if (world == null) throw new ArgumentNullException(nameof(world));
         var live = LiveScopes(world).Select(s => s.Path).ToArray();
         if (live.Length > 0) throw new FlowAssertionException($"Expected no live scopes, found: {string.Join(", ", live)}\n{world.Dump()}");
+    }
+
+    /// <summary>
+    /// Asserts that <paramref name="type"/> can be passed to <see cref="FlowWorld.SkipUnwinding"/>: none of its async
+    /// methods (lambdas and local functions included) has a block around an await that unwinding would run (finally,
+    /// using, foreach over a disposable enumerator, or a catch that takes FlowCanceledException; a filter such as
+    /// <c>when (e is not FlowCanceledException)</c> passes when its type tests alone let it pass). It reads the compiled
+    /// method bodies, so it runs under the JIT or Mono only: elsewhere (NativeAOT, IL2CPP) it throws
+    /// NotSupportedException. A trimmed build has only the methods something calls, so check in an untrimmed one.
+    /// </summary>
+    public static void CanSkipUnwinding(Type type)
+    {
+        if (type == null) throw new ArgumentNullException(nameof(type));
+        var methods = UnwindRegions.MethodsWithCleanupAroundAwait(type);
+        if (methods.Count > 0)
+            throw new FlowAssertionException(
+                $"{type} cannot skip unwinding: its async methods {string.Join(", ", methods)} have a finally, using or foreach block, or a catch that may take FlowCanceledException, around an await, " +
+                "which a method canceled without unwinding does not run. Move those methods to another type, or do not pass the type to FlowWorld.SkipUnwinding.");
     }
 }
 

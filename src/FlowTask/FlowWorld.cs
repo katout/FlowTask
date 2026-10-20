@@ -15,6 +15,9 @@ public sealed class FlowWorld : IDisposable
     bool _disposing;
     bool _disposed;
 
+    /// <summary>The types passed to SkipUnwinding (generic definitions); null until the first.</summary>
+    internal HashSet<Type> SkipUnwindingTypes;
+
     internal FlowNode CurrentScope;
     internal int ExecutionDepth;
     /// <summary>Counts the top-level passes (Tick, Flush, Run, Dispose): the synchronous-completion limit counts per pass.</summary>
@@ -111,6 +114,22 @@ public sealed class FlowWorld : IDisposable
 
     /// <summary>Creates a World clock under <see cref="DefaultClock"/>.</summary>
     public Clock CreateClock(string name) => CreateClock(name, DefaultClock);
+
+    /// <summary>
+    /// Canceled in this World, the async FlowTask methods declared in <paramref name="type"/> (its lambdas and local
+    /// functions included) end at the await where they are suspended without unwinding: no FlowCanceledException is
+    /// thrown, so no catch, finally or using block around that await runs. AddCleanup and Own still run, children still
+    /// end first, and a Flow.NonCancelable await is still waited for. Only for types whose methods have no such block
+    /// around an await, which nothing checks here: assert it in a test with FlowAssert.CanSkipUnwinding (FlowTask.Testing).
+    /// A generic type stands for all its constructions.
+    /// </summary>
+    public void SkipUnwinding(Type type)
+    {
+        if (type == null) throw new ArgumentNullException(nameof(type));
+        CheckThread();
+        CheckNotDisposed();
+        (SkipUnwindingTypes ??= new HashSet<Type>()).Add(type.IsGenericType ? type.GetGenericTypeDefinition() : type);
+    }
 
     /// <summary>
     /// Starts <paramref name="task"/> as a child of the root scope: it runs until it ends, however the caller ends, and

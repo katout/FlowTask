@@ -73,6 +73,8 @@ Here is a rough cost per method. All of these were measured on a desktop PC.
 - **IL2CPP**: every throw captures the stack trace again, walking the whole thread stack to do so, so deeper calls cost more. Reusing the exception instance only saves the exception object.
 - There are no IL2CPP measurements on real devices such as smartphones. Measure on your target devices.
 
+A type with no `finally`, `using`, or `catch` that takes the cancellation around an await can be passed to `FlowWorld.SkipUnwinding`: its canceled methods then end without throwing ([Scopes and cancellation](../guide/scopes-and-cancellation.md)). In `Cancel 10000 flows` of `tools/bench/ab.cs` (a flow that spawned 10,000 children waiting on frames is canceled; the Cancel and the Flush that unwinds them are timed; .NET 10, Release, desktop PC), unwinding cost about 1.2 µs and 200 B per child, and `SkipUnwinding` about 0.14 µs (about 0.07 µs without dynamic PGO) with no allocation. It hasn't been measured on IL2CPP yet.
+
 ### Estimating a screen transition
 
 Closing a screen with about 500 suspended async methods at once took 6 to 12 ms on the IL2CPP development player above (on a desktop PC). On the .NET JIT, it takes less than 1 ms. It hasn't been measured on real devices such as smartphones, so the cost there is not known.
