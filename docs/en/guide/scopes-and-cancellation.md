@@ -84,7 +84,7 @@ When you call `handle.Cancel()` from flow code, the target starts unwinding imme
 
 ### Ending without an exception: SkipUnwinding
 
-The async methods of a type passed to `world.SkipUnwinding(typeof(T))` (including its lambdas and local functions), when canceled in that World, end at the await where they are suspended without throwing `FlowCanceledException`. It removes the cost of the exception ([Performance and memory](../advanced/performance.md)) where many flows stop at once. By default, every type unwinds.
+The async FlowTask methods of a type passed to `world.SkipUnwinding(typeof(T))` (including its lambdas and local functions), when canceled in that World, end at the await where they are suspended without throwing `FlowCanceledException`. It removes the cost of the exception ([Performance and memory](../advanced/performance.md)) where many flows stop at once. By default, every type unwinds.
 
 ```csharp
 static class EnemyFlows

@@ -84,7 +84,7 @@ hud.Cancel();   // Hud unwinds: the finally runs, then the InputLock is disposed
 
 ### 例外を投げずに終える：SkipUnwinding
 
-`world.SkipUnwinding(typeof(T))` に渡した型の async メソッド（その中のラムダとローカル関数を含む）は、その World で取り消されると、止まっている await で `FlowCanceledException` を投げずに終わります。大量のフローを一度に止める場面で、例外の費用（[性能とメモリ](../advanced/performance.md)）をなくすためのものです。既定では、どの型も巻き戻します。
+`world.SkipUnwinding(typeof(T))` に渡した型の async の FlowTask のメソッド（その中のラムダとローカル関数を含む）は、その World で取り消されると、止まっている await で `FlowCanceledException` を投げずに終わります。大量のフローを一度に止める場面で、例外の費用（[性能とメモリ](../advanced/performance.md)）をなくすためのものです。既定では、どの型も巻き戻します。
 
 ```csharp
 static class EnemyFlows

@@ -577,19 +577,19 @@ async FlowTask<Choice> Confirm()
 
 ### What it detects
 
-A call of `FlowWorld.SkipUnwinding(typeof(T))` where the source of `T` has one of the following around an `await`, in an async method of `T` or in a lambda or local function written in one (in every part of a `partial` type; for a generic type, in its definition):
+A call of `FlowWorld.SkipUnwinding(typeof(T))` where the source of `T` has one of the following around an `await`, in an async `FlowTask` method of `T` (one that returns `FlowTask` or `FlowTask<T>`) or in an async `FlowTask` lambda or local function written in `T` (in every part of a `partial` type, and in the C# 14 extension blocks of `T`; for a generic type, in its definition). Async methods, lambdas and local functions that return `Task`, `ValueTask` or `void` aren't searched: they unwind in any type.
 
 - A `finally` whose `try` block contains the `await`, and a `catch` block that awaits in a `try` statement with a `finally`.
-- A `using` statement around the `await`, a `using var` declaration before it in the same block, and the same with `await using`.
+- A `using` statement around the `await`, a `using var` declaration before it in the same block (labeled or not), and the same with `await using`. A `using` that declares two or more resources puts each in the `try` block of the ones before it: an `await` in the initializer of one after the first (`using var a = new A(), b = await MakeAsync();`), and any `await using` of two or more resources (it awaits the disposal of the later ones there).
 - A `foreach` around the `await` whose enumerator is disposed. A `foreach` over an array or a `string` (the compiler writes a loop over the elements) and one whose enumerator is a struct or a sealed class without `Dispose` aren't reported.
-- Every `await foreach`.
-- A `catch` around the `await` that may receive `FlowCanceledException`: `catch`, `catch (Exception)`, `catch (OperationCanceledException)`, `catch (FlowCanceledException)`, a `catch (TEx)` of a type parameter whatever its constraints, and a `when` filter that isn't known to be false for `FlowCanceledException`. A filter passes when, read in the order it runs, its type tests make it false: `when (e is not FlowCanceledException)`, `when (!(e is OperationCanceledException))`, `when (e is not FlowCanceledException && Log(e))`. A filter that calls or reads a field first (`when (Log(e) && e is not FlowCanceledException)`), and one that combines with `&` or `|`, are reported.
+- An `await foreach` whose enumerator has `DisposeAsync` or implements `IAsyncDisposable`: the compiler awaits its `MoveNextAsync` inside the block that disposes it. One whose enumerator has neither isn't reported.
+- A `catch` around the `await` that may receive `FlowCanceledException`: `catch`, `catch (Exception)`, `catch (OperationCanceledException)`, `catch (FlowCanceledException)`, a `catch (TEx)` of a type parameter whatever its constraints, and a `when` filter that isn't known to be false for `FlowCanceledException`. A filter passes when, read in the order it runs, its type tests make it false: `when (e is not FlowCanceledException)`, `when (!(e is OperationCanceledException))`, `when (e is not FlowCanceledException && Log(e))`. `==` and `!=` of two `bool`s (`when (e is FlowCanceledException == false)`), `? :` (`when (e is FlowCanceledException ? false : true)`), `is false`, `is true` and `is not` of a `bool`, and `e != null` are read too. A filter that calls or reads a field first (`when (Log(e) && e is not FlowCanceledException)`), and one that combines with `&` or `|`, are reported.
 
 Not reported: an `await` inside a `catch` or `finally` block itself (the compiler moves it out of its `try` statement), blocks without an `await` inside, and the named types nested in `T`, which are types of their own (pass them separately). The rule also analyzes generated code, where a source generator may write the calls.
 
 ### Why
 
-Canceled in that World, the async methods of a type passed to `SkipUnwinding` end at the `await` they wait at without throwing `FlowCanceledException` ([Scopes and cancellation](../guide/scopes-and-cancellation.md)). The blocks around that `await` that unwinding would run then don't run: a `finally` doesn't release, a `using` doesn't dispose, a `catch` doesn't log. Nothing checks this at run time. `FlowAssert.CanSkipUnwinding` (FlowTask.Testing) checks it in a test by reading the compiled code, and this rule makes the same judgement at compile time, so a forgotten test doesn't let it through. Both are tested against the same list of shapes.
+Canceled in that World, the async `FlowTask` methods of a type passed to `SkipUnwinding` end at the `await` they wait at without throwing `FlowCanceledException` ([Scopes and cancellation](../guide/scopes-and-cancellation.md)). The blocks around that `await` that unwinding would run then don't run: a `finally` doesn't release, a `using` doesn't dispose, a `catch` doesn't log. Nothing checks this at run time. `FlowAssert.CanSkipUnwinding` (FlowTask.Testing) checks it in a test by reading the compiled code, and this rule makes the same judgement at compile time, so a forgotten test doesn't let it through. Both are tested against the same list of shapes.
 
 ### Bad example
 
@@ -635,7 +635,7 @@ There is no code fix.
 
 ### What it detects
 
-A call of `FlowWorld.SkipUnwinding` whose argument isn't `typeof` of a type with its source in the compilation: a variable, a method call, `typeof(T)` of a type parameter, and `typeof` of a type declared in another assembly (a DLL or a package). `null` isn't reported.
+A call of `FlowWorld.SkipUnwinding` whose argument isn't `typeof` of a type with its source in the compilation: a variable, a method call, `typeof(T)` of a type parameter, and `typeof` of a type declared in another assembly (a DLL or a package). `SkipUnwinding` made a delegate (`Action<Type> skip = world.SkipUnwinding;`) is reported too: the types it is called with aren't written at a call of `SkipUnwinding`. `null` isn't reported.
 
 ### Why
 

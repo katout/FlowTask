@@ -311,6 +311,31 @@ public class Flow011Tests
         """, Ids);
 
     [Test]
+    public Task FLOW012_SkipUnwindingMadeADelegateIsReported() => AnalyzerHarness.VerifyOnlyAsync("""
+        using System;
+        using Katout.FlowTask;
+
+        static class Flows
+        {
+            static async FlowTask Run()
+            {
+                try { await FlowTask.NextFrame(); } finally { }
+            }
+        }
+
+        static class Setup
+        {
+            static void Register(FlowWorld world)
+            {
+                Action<Type> skip = {|FLOW012:world.SkipUnwinding|};
+                var made = new Action<Type>({|FLOW012:world.SkipUnwinding|});
+                skip(typeof(Flows));
+                made(typeof(Flows));
+            }
+        }
+        """, Ids);
+
+    [Test]
     public async Task FLOW012_TheMessagesPointToFlowAssert()
     {
         var compilation = AnalyzerHarness.CreateCompilation("""

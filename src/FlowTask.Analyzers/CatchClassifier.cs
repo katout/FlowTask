@@ -66,7 +66,9 @@ internal static class CatchClassifier
     /// '!(e is FlowCanceledException)', 'e is IOException { … }', 'e is not (A or B)'), '!', '&amp;&amp;', '||', '&amp;',
     /// '|' and constants. Anything else (a method call, a property of the exception) is unknown. With
     /// <paramref name="inOrder"/>, the operands of '&amp;&amp;', '||' and the pattern combinators are taken in the order
-    /// they run, so an unknown one before a known one makes the whole unknown, and '&amp;' and '|' are unknown.
+    /// they run, so an unknown one before a known one makes the whole unknown, and '&amp;' and '|' are unknown; and, as
+    /// the check follows the comparisons and branches of the compiled filter, '==' and '!=' of two bools or of the catch
+    /// variable and null, 'c ? a : b', and 'is true', 'is false' and 'is not …' of a bool are known when their operands are.
     /// </summary>
     static Truth EvaluateFilter(CatchClauseSyntax clause, SemanticModel model, FlowTaskTypes types, bool inOrder, CancellationToken cancellationToken)
     {
@@ -175,9 +177,53 @@ internal static class CatchClassifier
                 return isType.IsNegated ? Not(test) : test;
             case IIsPatternOperation isPattern when IsVariable(isPattern.Value, variable):
                 return EvaluatePattern(isPattern.Pattern, types, inOrder);
+            case IBinaryOperation binary when inOrder && binary.OperatorMethod == null && binary.OperatorKind is BinaryOperatorKind.Equals or BinaryOperatorKind.NotEquals:
+                var equal = Equality(binary.LeftOperand, binary.RightOperand, variable, types);
+                return binary.OperatorKind == BinaryOperatorKind.Equals ? equal : Not(equal);
+            case IConditionalOperation conditional when inOrder && conditional.WhenFalse != null:
+                // 'c ? a : b' runs c, then one of a and b.
+                var condition = Evaluate(conditional.Condition, variable, types, inOrder);
+                return condition == Truth.Unknown ? Truth.Unknown : Evaluate(condition == Truth.True ? conditional.WhenTrue : conditional.WhenFalse, variable, types, inOrder);
+            case IIsPatternOperation boolPattern when inOrder && IsBoolean(boolPattern.Value):
+                return MatchBoolean(Evaluate(boolPattern.Value, variable, types, inOrder), boolPattern.Pattern);
             default:
                 return Truth.Unknown;
         }
+    }
+
+    /// <summary>
+    /// 'a == b' (in order): of two bools, both known; of the catch variable and null, false (the exception is never null).
+    /// </summary>
+    static Truth Equality(IOperation left, IOperation right, ILocalSymbol variable, FlowTaskTypes types)
+    {
+        if (IsBoolean(left) && IsBoolean(right))
+        {
+            var l = Evaluate(left, variable, types, inOrder: true);
+            if (l == Truth.Unknown) return Truth.Unknown;
+            var r = Evaluate(right, variable, types, inOrder: true);
+            return r == Truth.Unknown ? Truth.Unknown : l == r ? Truth.True : Truth.False;
+        }
+
+        if ((IsVariable(left, variable) && IsNull(right)) || (IsNull(left) && IsVariable(right, variable))) return Truth.False;
+        return Truth.Unknown;
+    }
+
+    /// <summary>A bool, known or not, against a pattern: 'is true', 'is false', 'is not …' and '_'; others are unknown.</summary>
+    static Truth MatchBoolean(Truth value, IPatternOperation pattern) => pattern switch
+    {
+        IDiscardPatternOperation _ => Truth.True,
+        INegatedPatternOperation negated => Not(MatchBoolean(value, negated.Pattern)),
+        IConstantPatternOperation { Value.ConstantValue: { HasValue: true, Value: bool expected } } when value != Truth.Unknown =>
+            (value == Truth.True) == expected ? Truth.True : Truth.False,
+        _ => Truth.Unknown,
+    };
+
+    static bool IsBoolean(IOperation operation) => operation.Type?.SpecialType == SpecialType.System_Boolean;
+
+    static bool IsNull(IOperation operation)
+    {
+        while (operation is IConversionOperation conversion && conversion.IsImplicit) operation = conversion.Operand;
+        return operation.ConstantValue.HasValue && operation.ConstantValue.Value == null;
     }
 
     static Truth EvaluatePattern(IPatternOperation pattern, FlowTaskTypes types, bool inOrder)

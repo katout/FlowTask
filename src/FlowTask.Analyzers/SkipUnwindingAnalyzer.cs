@@ -8,8 +8,8 @@ namespace Katout.FlowTask.Analyzers;
 /// their await without unwinding, so the finally blocks, the disposals and the catch clauses around that await do not
 /// run. FLOW011 (Error): a type written as typeof(X) whose source has such a block around an await, judged as
 /// FlowAssert.CanSkipUnwinding (FlowTask.Testing) judges the compiled code. FLOW012 (Warning): a type the analyzer
-/// cannot read (not written as typeof, a type parameter, or declared in another assembly), for which that check in a
-/// test is the only one. Generated code is analyzed too: a source generator may write the calls and the types.
+/// cannot read (not written as typeof, a type parameter, declared in another assembly, or SkipUnwinding made a delegate),
+/// for which that check in a test is the only one. Generated code is analyzed too: a source generator may write the calls and the types.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class SkipUnwindingAnalyzer : DiagnosticAnalyzer
@@ -33,18 +33,29 @@ public sealed class SkipUnwindingAnalyzer : DiagnosticAnalyzer
             // One search per type: a generator may pass the same type to every World it makes.
             var found = new ConcurrentDictionary<INamedTypeSymbol, CleanupAroundAwait.Found>(SymbolEqualityComparer.Default);
             start.RegisterOperationAction(c => Analyze(c, types, found), OperationKind.Invocation);
+            start.RegisterOperationAction(c => AnalyzeReference(c, types), OperationKind.MethodReference);
         });
     }
+
+    /// <summary>
+    /// 'world.SkipUnwinding' as a delegate ('Action&lt;Type&gt; skip = world.SkipUnwinding;'): the types it is called with
+    /// are not written at the call, so it is FLOW012 as a variable is.
+    /// </summary>
+    static void AnalyzeReference(OperationAnalysisContext context, FlowTaskTypes types)
+    {
+        var reference = (IMethodReferenceOperation)context.Operation;
+        if (!IsSkipUnwinding(reference.Method, types)) return;
+        context.ReportDiagnostic(Diagnostic.Create(Descriptors.SkipUnwindingTypeNotWritten, reference.Syntax.GetLocation()));
+    }
+
+    static bool IsSkipUnwinding(IMethodSymbol method, FlowTaskTypes types) =>
+        method.Name == SkipUnwinding && method.Parameters.Length == 1 && SymbolEqualityComparer.Default.Equals(method.ContainingType, types.FlowWorld);
 
     static void Analyze(OperationAnalysisContext context, FlowTaskTypes types, ConcurrentDictionary<INamedTypeSymbol, CleanupAroundAwait.Found> found)
     {
         var invocation = (IInvocationOperation)context.Operation;
         var method = invocation.TargetMethod;
-        if (method.Name != SkipUnwinding || invocation.Arguments.Length != 1 ||
-            !SymbolEqualityComparer.Default.Equals(method.ContainingType, types.FlowWorld))
-        {
-            return;
-        }
+        if (!IsSkipUnwinding(method, types) || invocation.Arguments.Length != 1) return;
 
         var argument = invocation.Arguments[0].Value;
         while (argument is IConversionOperation { IsImplicit: true } conversion) argument = conversion.Operand;
