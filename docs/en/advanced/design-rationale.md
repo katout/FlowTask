@@ -205,7 +205,7 @@ Flow code runs only on the thread that created the World, inside `Tick`, `Flush`
 
 **Why**
 
-- The times the state machine is advanced are decided by the one queue and the Ticks, as the order of resumes is, so the same input gives the same value. An await that didn't suspend depends only on whether the task ended at once, and doesn't advance the state machine, so it doesn't count.
+- The times the state machine is advanced are decided by the one queue and the Ticks, as the order of resumes is, so the same input gives the same value (completions and cancellations from other threads count as input). An await that didn't suspend depends only on whether the task ended at once, and doesn't advance the state machine, so it doesn't count.
 - The resume at which a canceled method throws `FlowCanceledException` counts as one. A type passed to `FlowWorld.SkipUnwinding` ends at that resume without running the method, and it also counts as one, so both Worlds give the same value.
 - The count is kept in the state machine's node and goes back to 0 when the node returns to its pool. A handle's node never returns to the pool, so the value stays after the task has ended and doesn't mix with the counts of other calls of the same method.
 
