@@ -199,7 +199,10 @@ internal static class HotPath
         "FromResult x100", "Subscription.Next x100", "Race(sub loses) x100",
         "FlowProperty.Set x100", "Signal.Emit (no receiver) x100", "FromCallback x100", "Join depth=10 x100", "Join depth=50 x100",
         "WhenAll(list 4) x100", "Idle waits x10000", "NextFrame x100 + idle x10000",
-        "Cancel 10000 flows", "Cancel 10000 flows (SkipUnwinding)",
+        "Cancel 10000 flows", "Cancel 10000 flows (SkipUnwinding)", "Cancel 10000 flows (finally)",
+        "Cancel 10000 handles", "Cancel 10000 handles (SkipUnwinding)", "Cancel 10000 aged handles",
+        "Cancel 10000 aged handles (SkipUnwinding)", "Cancel 10000 aged handles (finally)",
+        "Cancel 10000 nested handles", "Cancel 10000 nested handles (SkipUnwinding)",
     };
 
     /// <summary>
@@ -254,6 +257,14 @@ internal static class HotPath
             case "NextFrame x100 + idle x10000": IdleScenario(name, withNextFrame: true); break;
             case "Cancel 10000 flows": CancelManyScenario(name, skipUnwinding: false); break;
             case "Cancel 10000 flows (SkipUnwinding)": CancelManyScenario(name, skipUnwinding: true); break;
+            case "Cancel 10000 flows (finally)": CancelManyScenario(name, skipUnwinding: false, withFinally: true); break;
+            case "Cancel 10000 handles": CancelHandlesScenario(name, skipUnwinding: false); break;
+            case "Cancel 10000 handles (SkipUnwinding)": CancelHandlesScenario(name, skipUnwinding: true); break;
+            case "Cancel 10000 aged handles": CancelHandlesScenario(name, skipUnwinding: false, aged: true); break;
+            case "Cancel 10000 aged handles (SkipUnwinding)": CancelHandlesScenario(name, skipUnwinding: true, aged: true); break;
+            case "Cancel 10000 aged handles (finally)": CancelHandlesScenario(name, skipUnwinding: false, aged: true, withFinally: true); break;
+            case "Cancel 10000 nested handles": CancelHandlesScenario(name, skipUnwinding: false, aged: true, nested: true); break;
+            case "Cancel 10000 nested handles (SkipUnwinding)": CancelHandlesScenario(name, skipUnwinding: true, aged: true, nested: true); break;
             default: throw new ArgumentException("Unknown scenario: " + name);
         }
     }
@@ -300,17 +311,70 @@ internal static class HotPath
     /// With <paramref name="skipUnwinding"/>, the World skips the unwinding of their type (FlowWorld.SkipUnwinding, called
     /// through reflection so that the scenario also builds against a version without it, which then unwinds).
     /// </summary>
-    static void CancelManyScenario(string name, bool skipUnwinding)
+    static void CancelManyScenario(string name, bool skipUnwinding, bool withFinally = false)
     {
         using var w = new FlowWorld();
         if (skipUnwinding) typeof(FlowWorld).GetMethod("SkipUnwinding", new[] { typeof(Type) })?.Invoke(w, new object[] { typeof(CancelFlows) });
         long bytes = 0;
         double Round()
         {
-            var h = w.Run(CancelFlows.Owner());
+            var h = w.Run(withFinally ? CancelFlows.OwnerWithFinally() : CancelFlows.Owner());
             var before = GC.GetAllocatedBytesForCurrentThread();
             var sw = Stopwatch.StartNew();
             h.Cancel();
+            w.Flush();
+            sw.Stop();
+            bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            return sw.Elapsed.TotalMilliseconds;
+        }
+
+        var warm = Stopwatch.StartNew();
+        do Round();
+        while (warm.ElapsedMilliseconds < 500);
+        var best = double.MaxValue;
+        var bestBytes = 0L;
+        for (var r = 0; r < Rounds; r++)
+        {
+            var ms = Round();
+            if (ms < best)
+            {
+                best = ms;
+                bestBytes = bytes;
+            }
+        }
+
+        Report(name, best * 1e6 / CancelFlows.Count, "ns/flow");
+        Report(name + " bytes", (double)bestBytes / CancelFlows.Count, "B/flow");
+    }
+
+    /// <summary>
+    /// <see cref="CancelFlows.Count"/> root flows waiting on frames, each canceled through its own handle, then one Flush:
+    /// the shape of game objects that each own a flow and are destroyed in the same frame. Per flow, and bytes per flow.
+    /// </summary>
+    static void CancelHandlesScenario(string name, bool skipUnwinding, bool aged = false, bool withFinally = false, bool nested = false)
+    {
+        using var w = new FlowWorld();
+        if (skipUnwinding) typeof(FlowWorld).GetMethod("SkipUnwinding", new[] { typeof(Type) })?.Invoke(w, new object[] { typeof(CancelFlows) });
+        var handles = new FlowHandle[CancelFlows.Count];
+        long bytes = 0;
+        double Round()
+        {
+            for (var i = 0; i < handles.Length; i++) handles[i] = w.Run(nested ? CancelFlows.Outer() : withFinally ? CancelFlows.WaitWithFinally() : CancelFlows.Wait());
+            if (aged)
+            {
+                // Flows that have waited a while: a few Ticks, then a compacting GC moves them as a long-running game's
+                // heap would, so the cancellation does not find them in the cache it started them from.
+                for (var t = 0; t < 4; t++) w.Tick(Bench.Dt);
+                GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                GC.WaitForPendingFinalizers();
+                var junk = new object[1 << 16];
+                for (var j = 0; j < junk.Length; j++) junk[j] = new byte[64];
+                GC.KeepAlive(junk);
+            }
+
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var sw = Stopwatch.StartNew();
+            for (var i = 0; i < handles.Length; i++) handles[i].Cancel();
             w.Flush();
             sw.Stop();
             bytes = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -442,11 +506,38 @@ internal static class CancelFlows
 {
     internal const int Count = 10000;
 
-    static async FlowTask Wait() => await FlowTask.DelayFrames(int.MaxValue);
+    internal static async FlowTask Wait() => await FlowTask.DelayFrames(int.MaxValue);
+
+    static int s_cleaned;
+
+    internal static async FlowTask WaitWithFinally()
+    {
+        try
+        {
+            await FlowTask.DelayFrames(int.MaxValue);
+        }
+        finally
+        {
+            s_cleaned++;
+        }
+    }
+
+    /// <summary>A flow that awaits a method that awaits a wait helper: three state machines, the shape of game code.</summary>
+    internal static async FlowTask Outer() => await Middle();
+
+    static async FlowTask Middle() => await WaitHelper();
+
+    static async FlowTask WaitHelper() => await FlowTask.DelayFrames(int.MaxValue);
 
     internal static async FlowTask Owner()
     {
         for (var i = 0; i < Count; i++) _ = Flow.Spawn(Wait());
+        await FlowTask.Never();
+    }
+
+    internal static async FlowTask OwnerWithFinally()
+    {
+        for (var i = 0; i < Count; i++) _ = Flow.Spawn(WaitWithFinally());
         await FlowTask.Never();
     }
 }
