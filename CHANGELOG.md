@@ -7,6 +7,11 @@ without a deprecation period; every break is listed here.
 
 ## [Unreleased]
 
+### Changed
+
+- Canceling many flows at once costs less. The flush no longer copies the cancellations made outside the World's code before unwinding them, and no longer takes a list for each canceled flow; a `SkipUnwinding` method ends without setting the thread's current World again, and up to eight `SkipUnwinding` types are looked up without hashing. In `tools/bench/ab.cs` (.NET 10, Release, desktop PC), canceling 10,000 root flows of a `SkipUnwinding` type through their handles and flushing went from about 58 to 41 ns per flow (69 to 48 ns without dynamic PGO), and from about 189 to 167 ns when each flow is three async methods deep (225 to 192 ns). The order in which the flows end, run their cleanups, tell their handles and are reported is unchanged.
+- The first large cancellation in a World no longer puts arrays on the Large Object Heap, which only a gen2 GC collects: the lists the unwinding uses grow in chunks of 16 KB instead of doubling one array. Canceling 10,000 flows in a new World put about 553 KB there (68 B per flow in all); it now allocates about 18 B per flow, none of it there. A World that has canceled as many flows before still allocates nothing.
+
 ## [0.2.0-preview.1] - 2026-10-20
 
 ### Added

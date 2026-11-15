@@ -75,7 +75,7 @@ async メソッドを取り消すと、止まっている await で例外を投�
 - **IL2CPP**：投げるたびにスタックトレースを取り直し、そのためにスレッドのスタック全体をたどるので、呼び出しが深いほど高くなります。例外のインスタンスを使い回しても、減るのは例外オブジェクトの分だけです。
 - スマートフォンなどの実機で IL2CPP を測った値はありません。対象の端末で測ってください。
 
-await を囲む `finally`、`using`、キャンセルを受け取る `catch` を持たない型は、`FlowWorld.SkipUnwinding` に渡すと、取り消しで例外を投げずに終わります（[スコープとキャンセル](../guide/scopes-and-cancellation.md)）。`tools/bench/ab.cs` の `Cancel 10000 flows`（フレームを待つ子を 1 万本 Spawn したフローを取り消し、Cancel と巻き戻す Flush を測る。.NET 10、Release、デスクトップの PC）では、1 本あたり、巻き戻すと約 1.2 µs と 200 B、`SkipUnwinding` では約 0.14 µs（動的 PGO なしで約 0.07 µs）で割り当てはありませんでした。IL2CPP ではまだ測っていません。
+await を囲む `finally`、`using`、キャンセルを受け取る `catch` を持たない型は、`FlowWorld.SkipUnwinding` に渡すと、取り消しで例外を投げずに終わります（[スコープとキャンセル](../guide/scopes-and-cancellation.md)）。`tools/bench/ab.cs` の `Cancel 10000 flows`（フレームを待つ子を 1 万本 Spawn したフローを取り消し、Cancel と巻き戻す Flush を測る。.NET 10、Release、デスクトップの PC）では、1 本あたり、巻き戻すと約 1.2 µs と 200 B、`SkipUnwinding` では約 0.06 µs（動的 PGO なしでも同じ）で割り当てはありませんでした。根のフロー 1 万本を取っ手ごとに取り消す形（`Cancel 10000 handles (SkipUnwinding)`）では約 0.04 µs、それぞれが async メソッド 3 段の入れ子なら約 0.17 µs（動的 PGO なしで約 0.05 µs と 0.19 µs）です。IL2CPP ではまだ測っていません。
 
 ### 画面遷移の見積もり
 
