@@ -177,6 +177,9 @@ internal sealed class Unwinder
     /// Unwinds a canceled subtree, descendants first and later-started siblings first. A node on the running path cannot be
     /// resumed re-entrantly: it unwinds itself at its next await, and its ancestors once the running chain returns.
     /// </summary>
+    // Not inlined into ProcessPending: inlined there (dynamic PGO), a canceled method that throws FlowCanceledException
+    // cost about 5% more, three methods deep.
+    [MethodImpl(MethodImplOptions.NoInlining)]
     void UnwindSubtreeNow(FlowNode node)
     {
         // A node without children is its own post-order list.
