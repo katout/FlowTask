@@ -315,7 +315,26 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
         ResumeCount++;
         var world = World;
         var prevWorld = FlowWorld.t_current;
+        // The unwinding of a flush, which made the World current already: no thread-static write.
+        if (ReferenceEquals(prevWorld, world))
+        {
+            EndAtAwaitInCurrentWorld(world);
+            return;
+        }
+
         FlowWorld.t_current = world;
+        try
+        {
+            EndAtAwaitInCurrentWorld(world);
+        }
+        finally
+        {
+            FlowWorld.t_current = prevWorld;
+        }
+    }
+
+    void EndAtAwaitInCurrentWorld(FlowWorld world)
+    {
         var prevScope = world.CurrentScope;
         world.CurrentScope = this;
         world.ExecutionDepth++;
@@ -339,7 +358,6 @@ internal abstract class StateMachineScope<T> : FlowNode<T>
             }
 
             world.ExecutionDepth--;
-            FlowWorld.t_current = prevWorld;
         }
     }
 

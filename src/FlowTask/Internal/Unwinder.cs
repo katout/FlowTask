@@ -8,9 +8,14 @@ internal sealed class Unwinder
 {
     readonly FlowWorld _world;
     readonly RunningStack _running;
-    readonly List<NodeRef> _pending = new();
-    readonly List<NodeRef> _deferred = new();
-    readonly List<List<NodeRef>> _listPool = new();
+    // Subtrees canceled outside execution. The flush swaps the list with the spare one and unwinds what it took, so it
+    // copies nothing; a cancellation made meanwhile goes to the other list.
+    NodeRefList _pending = new();
+    NodeRefList _spare = new();
+    readonly NodeRefList _deferred = new();
+    // The post-order lists of the subtrees being unwound, as a stack: an unwind that runs code which unwinds another
+    // subtree adds that one's list after its own and drops it before going on.
+    readonly NodeRefList _subtrees = new();
     bool _draining;
 
     internal Unwinder(FlowWorld world, RunningStack running)
@@ -114,10 +119,9 @@ internal sealed class Unwinder
     /// <summary>Unwinds the canceled children of <paramref name="node"/>, later-started first.</summary>
     internal void UnwindChildren(FlowNode node)
     {
-        var list = RentList();
-        for (var c = node.LastChild; c != null; c = c.PrevSibling) CollectPostOrder(c, list);
-        ProcessUnwindList(list);
-        ReturnList(list);
+        var start = _subtrees.Count;
+        for (var c = node.LastChild; c != null; c = c.PrevSibling) CollectPostOrder(c, _subtrees);
+        ProcessSubtrees(start);
     }
 
     /// <summary>A canceled state machine held for its children unwinds now that they have ended.</summary>
@@ -152,15 +156,21 @@ internal sealed class Unwinder
     internal void ProcessPending()
     {
         if (_pending.Count == 0) return;
-        var batch = RentList();
-        batch.AddRange(_pending);
-        _pending.Clear();
-        foreach (var r in batch)
+        var batch = _pending;
+        // Only ResumeQueue.Flush calls this, and Tick and Flush refuse to run inside the World's code (IsExecuting), so
+        // it never runs inside itself and the spare is free. The spare is null only after an exception left an earlier
+        // call before it put its batch back: a new list replaces it.
+        _pending = _spare ?? new NodeRefList();
+        _spare = null;
+        var count = batch.Count;
+        for (var i = 0; i < count; i++)
         {
+            var r = batch[i];
             if (r.IsLive) UnwindSubtreeNow(r.Node);
         }
 
-        ReturnList(batch);
+        batch.Clear();
+        _spare = batch;
         DrainDeferred();
     }
 
@@ -168,19 +178,28 @@ internal sealed class Unwinder
     /// Unwinds a canceled subtree, descendants first and later-started siblings first. A node on the running path cannot be
     /// resumed re-entrantly: it unwinds itself at its next await, and its ancestors once the running chain returns.
     /// </summary>
+    // Not inlined into ProcessPending: inlined there (dynamic PGO), a canceled method that throws FlowCanceledException
+    // cost about 5% more, three methods deep.
+    [MethodImpl(MethodImplOptions.NoInlining)]
     void UnwindSubtreeNow(FlowNode node)
     {
-        var list = RentList();
-        CollectPostOrder(node, list);
-        ProcessUnwindList(list);
-        ReturnList(list);
+        // A node without children is its own post-order list.
+        if (node.FirstChild == null)
+        {
+            UnwindNode(new NodeRef(node));
+            return;
+        }
+
+        var start = _subtrees.Count;
+        CollectPostOrder(node, _subtrees);
+        ProcessSubtrees(start);
     }
 
     /// <summary>
     /// The subtree of <paramref name="root"/> in post-order, later-started children first. Iterative over the tree links:
     /// a chain of awaits can be thousands of nodes deep.
     /// </summary>
-    static void CollectPostOrder(FlowNode root, List<NodeRef> list)
+    static void CollectPostOrder(FlowNode root, NodeRefList list)
     {
         var n = root;
         while (n.LastChild != null) n = n.LastChild;
@@ -199,33 +218,32 @@ internal sealed class Unwinder
         }
     }
 
-    void ProcessUnwindList(List<NodeRef> list)
+    /// <summary>Unwinds the nodes collected in <see cref="_subtrees"/> from <paramref name="start"/> on, then drops them.</summary>
+    void ProcessSubtrees(int start)
     {
-        foreach (var r in list)
+        var end = _subtrees.Count;
+        try
         {
-            var n = r.Node;
-            if (!r.IsLive || !n.IsCancelConfirmed || (n.Flags & NodeFlags.Ending) != 0) continue;
-            if (!_running.IsEmpty && _running.IsOnPath(n))
-            {
-                _deferred.Add(r);
-                continue;
-            }
-
-            n.UnwindSelf();
+            // An unwind that unwinds another subtree adds its list after end and drops it before returning.
+            for (var i = start; i < end; i++) UnwindNode(_subtrees[i]);
+        }
+        finally
+        {
+            _subtrees.Truncate(start);
         }
     }
 
-    List<NodeRef> RentList()
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    void UnwindNode(NodeRef r)
     {
-        if (_listPool.Count == 0) return new List<NodeRef>(16);
-        var l = _listPool[^1];
-        _listPool.RemoveAt(_listPool.Count - 1);
-        return l;
-    }
+        var n = r.Node;
+        if (!r.IsLive || !n.IsCancelConfirmed || (n.Flags & NodeFlags.Ending) != 0) return;
+        if (!_running.IsEmpty && _running.IsOnPath(n))
+        {
+            _deferred.Add(r);
+            return;
+        }
 
-    void ReturnList(List<NodeRef> list)
-    {
-        list.Clear();
-        _listPool.Add(list);
+        n.UnwindSelf();
     }
 }

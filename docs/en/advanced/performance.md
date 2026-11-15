@@ -56,6 +56,8 @@ The following allocate every time.
 - One failure: one failure record, one `FlowExceptionInfo`, one `ExceptionDispatchInfo`, and one path string. When an exception travels up a chain of awaits, each level that rethrows it also allocates. A chain that ends in success doesn't allocate, however many levels it has.
 - Your code compiled in Debug. The compiler makes the state machines classes. This also applies to Unity's Development Build and to the editor when Code Optimization is set to Debug ([Unity setup](../unity/setup.md)). Measure allocations in an optimized build.
 
+Also, when a World cancels more flows at once than it has before, the lists the unwinding uses grow (about 16 to 18 B per flow). They grow by 16 KB, so nothing goes on the Large Object Heap (which only a gen2 GC collects); later cancellations of up to as many flows allocate nothing.
+
 ## The cost of cancellation
 
 A canceled async method throws a new `FlowCanceledException` once at the await where it is suspended, and exits while running `finally` and `using`. This happens once per suspended async method. It doesn't become a chain that rethrows the exception at each level. Unwinding a leaf wait throws no exception and allocates nothing.
@@ -73,7 +75,7 @@ Here is a rough cost per method. All of these were measured on a desktop PC.
 - **IL2CPP**: every throw captures the stack trace again, walking the whole thread stack to do so, so deeper calls cost more. Reusing the exception instance only saves the exception object.
 - There are no IL2CPP measurements on real devices such as smartphones. Measure on your target devices.
 
-A type with no `finally`, `using`, or `catch` that takes the cancellation around an await can be passed to `FlowWorld.SkipUnwinding`: its canceled methods then end without throwing ([Scopes and cancellation](../guide/scopes-and-cancellation.md)). In `Cancel 10000 flows` of `tools/bench/ab.cs` (a flow that spawned 10,000 children waiting on frames is canceled; the Cancel and the Flush that unwinds them are timed; .NET 10, Release, desktop PC), unwinding cost about 1.2 µs and 200 B per child, and `SkipUnwinding` about 0.14 µs (about 0.07 µs without dynamic PGO) with no allocation. It hasn't been measured on IL2CPP yet.
+A type with no `finally`, `using`, or `catch` that takes the cancellation around an await can be passed to `FlowWorld.SkipUnwinding`: its canceled methods then end without throwing ([Scopes and cancellation](../guide/scopes-and-cancellation.md)). In `Cancel 10000 flows` of `tools/bench/ab.cs` (a flow that spawned 10,000 children waiting on frames is canceled; the Cancel and the Flush that unwinds them are timed; .NET 10, Release, desktop PC), unwinding cost about 1.2 µs and 200 B per child, and `SkipUnwinding` about 0.06 µs (the same without dynamic PGO) with no allocation. Canceling 10,000 root flows through their own handles (`Cancel 10000 handles (SkipUnwinding)`) cost about 0.04 µs per flow, and about 0.17 µs when each is three async methods deep (about 0.05 µs and 0.19 µs without dynamic PGO). It hasn't been measured on IL2CPP yet.
 
 ### Estimating a screen transition
 

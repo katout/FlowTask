@@ -1379,4 +1379,146 @@ public class CancellationTests : FlowTestBase
         AssertLog("level 3", "level 2", "level 1", "level 0");
         Assert.That(h.Status, Is.EqualTo(FlowStatus.Canceled));
     }
+
+    [Test]
+    public void ManyFlowsCanceledThroughTheirHandlesEndInTheOrderTheyWereCanceled()
+    {
+        // More flows than a flush takes in one block of its bookkeeping, twice in the same World (the second time
+        // reuses what the first grew), half of them unwinding and half skipping the unwinding.
+        const int count = 2500;
+        World.SkipUnwinding(typeof(ManyFlows));
+        var ended = new List<int>();
+        for (var round = 0; round < 2; round++)
+        {
+            ended.Clear();
+            var handles = new FlowHandle[count];
+            for (var i = 0; i < count; i++) handles[i] = World.Run(i % 2 == 0 ? ManyFlows.Wait(i, ended) : Unwinding(i, ended));
+            Tick();
+            var order = new List<int>();
+            for (var k = 0; k < count; k++) order.Add(k * 7 % count);
+            foreach (var i in order) handles[i].Cancel();
+            World.Flush();
+            Assert.That(ended, Is.EqualTo(order), "round " + round);
+            foreach (var h in handles) Assert.That(h.Status, Is.EqualTo(FlowStatus.Canceled));
+        }
+
+        FlowAssert.NoLiveScopes(World);
+
+        static async FlowTask Unwinding(int i, List<int> ended)
+        {
+            Flow.AddCleanup(() => ended.Add(i));
+            await FlowTask.Never();
+        }
+    }
+
+    [Test]
+    public void ManySpawnedChildrenOfACanceledFlowEndLaterStartedFirst()
+    {
+        // A subtree larger than one block of the unwinding's bookkeeping, twice in the same World.
+        const int count = 2500;
+        var ended = new List<int>();
+
+        async FlowTask Owner()
+        {
+            Flow.AddCleanup(() => ended.Add(-1));
+            for (var i = 0; i < count; i++) _ = Flow.Spawn(Child(i));
+            await FlowTask.Never();
+        }
+
+        async FlowTask Child(int i)
+        {
+            Flow.AddCleanup(() => ended.Add(i));
+            await FlowTask.DelayFrames(1000);
+        }
+
+        for (var round = 0; round < 2; round++)
+        {
+            ended.Clear();
+            var h = World.Run(Owner());
+            Tick();
+            h.Cancel();
+            World.Flush();
+            var expected = new List<int>();
+            for (var i = count - 1; i >= 0; i--) expected.Add(i);
+            expected.Add(-1);
+            Assert.That(ended, Is.EqualTo(expected), "round " + round);
+            Assert.That(h.Status, Is.EqualTo(FlowStatus.Canceled));
+        }
+
+        FlowAssert.NoLiveScopes(World);
+    }
+
+    [TestCase(3)]
+    [TestCase(1023)]
+    public void FlowsCanceledByAFinallyWhileItsOwnerUnwindsUnwindThereFirst(int ownerChildren)
+    {
+        // A's subtree unwinds later-started first. The finally of A's last child cancels B, whose subtree (2,001 scopes)
+        // unwinds there, inside A's; the next child's finally cancels C. With 1,023 children, A's own post-order list
+        // (with A) fills one block of the unwinding's bookkeeping exactly, so B's and C's start on the next. Twice in the
+        // same World.
+        var log = new List<string>();
+        FlowHandle b = default, c = default;
+
+        async FlowTask Child(string name, Action onFinally)
+        {
+            try
+            {
+                await FlowTask.DelayFrames(1000);
+            }
+            finally
+            {
+                log.Add(name);
+                onFinally?.Invoke();
+            }
+        }
+
+        async FlowTask Parent(string name, int count, Func<int, Action> onChildFinally)
+        {
+            try
+            {
+                for (var i = 0; i < count; i++) _ = Flow.Spawn(Child(name.ToLowerInvariant() + i, onChildFinally?.Invoke(i)));
+                await FlowTask.DelayFrames(1000);
+            }
+            finally
+            {
+                log.Add(name);
+            }
+        }
+
+        Action CancelFrom(int i) => i == ownerChildren - 1 ? () => b.Cancel() : i == ownerChildren - 2 ? () => c.Cancel() : null;
+
+        var expected = new List<string> { "a" + (ownerChildren - 1) };
+        for (var i = 1999; i >= 0; i--) expected.Add("b" + i);
+        expected.Add("B");
+        expected.Add("a" + (ownerChildren - 2));
+        for (var i = 2; i >= 0; i--) expected.Add("c" + i);
+        expected.Add("C");
+        for (var i = ownerChildren - 3; i >= 0; i--) expected.Add("a" + i);
+        expected.Add("A");
+
+        for (var round = 0; round < 2; round++)
+        {
+            log.Clear();
+            var a = World.Run(Parent("A", ownerChildren, CancelFrom));
+            b = World.Run(Parent("B", 2000, null));
+            c = World.Run(Parent("C", 3, null));
+            Tick();
+            a.Cancel();
+            World.Flush();
+            Assert.That(log, Is.EqualTo(expected), "round " + round);
+            foreach (var h in new[] { a, b, c }) Assert.That(h.Status, Is.EqualTo(FlowStatus.Canceled), "round " + round);
+        }
+
+        FlowAssert.NoLiveScopes(World);
+    }
+}
+
+/// <summary>Flows whose unwinding <see cref="CancellationTests"/> skips: no block around an await.</summary>
+internal static class ManyFlows
+{
+    internal static async FlowTask Wait(int i, List<int> ended)
+    {
+        Flow.AddCleanup(() => ended.Add(i));
+        await FlowTask.DelayFrames(1000);
+    }
 }

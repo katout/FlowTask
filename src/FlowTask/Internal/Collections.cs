@@ -115,6 +115,140 @@ internal readonly record struct NodeRef(FlowNode Node, uint Token)
     internal bool IsLive => Node.Token == Token && Node.State == NodeState.Running;
 }
 
+/// <summary>
+/// A growable list of <see cref="NodeRef"/> stored in chunks of <see cref="ChunkSize"/> entries (16 KB). Growing past a
+/// chunk adds one and copies nothing, so no array of it reaches the Large Object Heap (85,000 bytes): the first large
+/// cancellation in a World does not allocate there. The first chunk starts small and doubles up to the full size, so a
+/// list that stays short stays small. Chunks are kept when the list shrinks: allocation-free after warm-up.
+/// </summary>
+internal sealed class NodeRefList
+{
+    const int ChunkShift = 10;
+    const int ChunkSize = 1 << ChunkShift;
+    const int ChunkMask = ChunkSize - 1;
+
+    NodeRef[][] _chunks;
+    // The chunk the next entry goes to, and the index of its first entry.
+    NodeRef[] _tail;
+    int _tailStart;
+    int _count;
+
+    internal NodeRefList()
+    {
+        _tail = new NodeRef[8];
+        _chunks = new[] { _tail };
+    }
+
+    internal int Count => _count;
+
+    internal NodeRef this[int index]
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => _chunks[index >> ChunkShift][index & ChunkMask];
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    internal void Add(NodeRef item)
+    {
+        var i = _count - _tailStart;
+        var tail = _tail;
+        if ((uint)i >= (uint)tail.Length)
+        {
+            tail = Grow();
+            i = _count - _tailStart;
+        }
+
+        tail[i] = item;
+        _count++;
+    }
+
+    /// <summary>The first chunk doubles up to the full size; past it, the next chunk (kept or new) becomes the tail.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    NodeRef[] Grow()
+    {
+        if (_tail.Length < ChunkSize)
+        {
+            var first = new NodeRef[_tail.Length * 2];
+            Array.Copy(_tail, first, _tail.Length);
+            _chunks[0] = first;
+            _tail = first;
+            return first;
+        }
+
+        var k = _count >> ChunkShift;
+        if (k == _chunks.Length) Array.Resize(ref _chunks, k * 2);
+        _tail = _chunks[k] ??= new NodeRef[ChunkSize];
+        _tailStart = k << ChunkShift;
+        return _tail;
+    }
+
+    /// <summary>Drops the entries from <paramref name="count"/> on (their references are cleared).</summary>
+    internal void Truncate(int count)
+    {
+        var end = _count;
+        if (count >= end) return;
+        for (var i = count; i < end;)
+        {
+            var chunk = _chunks[i >> ChunkShift];
+            var from = i & ChunkMask;
+            var length = Math.Min(chunk.Length - from, end - i);
+            Array.Clear(chunk, from, length);
+            i += length;
+        }
+
+        _count = count;
+        var k = count >> ChunkShift;
+        _tail = _chunks[k];
+        _tailStart = k << ChunkShift;
+    }
+
+    internal void Clear() => Truncate(0);
+}
+
+/// <summary>
+/// The types passed to FlowWorld.SkipUnwinding, read for every state machine a cancellation ends. Up to
+/// <see cref="ListLimit"/> runtime types, as a World usually has, are compared by reference, which costs less than hashing a
+/// Type; more, or a Type that is not a runtime type, go to a HashSet.
+/// </summary>
+internal sealed class TypeSet
+{
+    const int ListLimit = 8;
+
+    readonly Type[] _list = new Type[ListLimit];
+    int _count;
+    HashSet<Type> _set;
+
+    internal void Add(Type type)
+    {
+        if (_set == null)
+        {
+            if (Contains(type)) return;
+            if (_count < ListLimit && ReferenceEquals(type.UnderlyingSystemType, type))
+            {
+                _list[_count++] = type;
+                return;
+            }
+
+            _set = new HashSet<Type>();
+            for (var i = 0; i < _count; i++) _set.Add(_list[i]);
+        }
+
+        _set.Add(type);
+    }
+
+    internal bool Contains(Type type)
+    {
+        if (_set != null) return _set.Contains(type);
+        var list = _list;
+        for (var i = 0; i < _count; i++)
+        {
+            if (ReferenceEquals(list[i], type)) return true;
+        }
+
+        return false;
+    }
+}
+
 internal enum InboxKind : byte
 {
     /// <summary>An <see cref="IInboxItem"/>: a cross-thread emit or close, a posted action, a Task completion.</summary>

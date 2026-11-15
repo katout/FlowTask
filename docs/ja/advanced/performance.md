@@ -56,6 +56,8 @@ async メソッドを取り消すと、止まっている await で例外を投�
 - 失敗 1 回：失敗の記録、`FlowExceptionInfo`、`ExceptionDispatchInfo`、パスの文字列を 1 回ずつ。例外が await の鎖を上るときは、投げ直す段ごとにも割り当てます。成功で終わる鎖は、段数によらず割り当てません。
 - Debug でコンパイルした利用者のコード。コンパイラが状態機械をクラスにします。Unity の Development Build とエディタの Code Optimization が Debug のときも同じです（[Unity のセットアップ](../unity/setup.md)）。割り当てを測るときは、最適化したビルドで測ってください。
 
+このほか、World がそれまでより多くのフローを一度に取り消すと、巻き戻しが使う列が伸びます（1 本あたり 16〜18 B ほど）。列は 16 KB ずつ伸びるので、ラージオブジェクトヒープ（gen2 の GC でしか回収されない）には置きません。次からは、同じ数までの取り消しで割り当てません。
+
 ## キャンセルの費用
 
 取り消された async メソッドは、止まっている await で新しい `FlowCanceledException` を 1 回投げ、`finally` と `using` を走らせながら抜けます。回数は止まっている async メソッド 1 個につき 1 回です。例外を段ごとに投げ直す鎖にはなりません。葉の待ちの巻き戻しは例外を投げず、割り当てもありません。
@@ -73,7 +75,7 @@ async メソッドを取り消すと、止まっている await で例外を投�
 - **IL2CPP**：投げるたびにスタックトレースを取り直し、そのためにスレッドのスタック全体をたどるので、呼び出しが深いほど高くなります。例外のインスタンスを使い回しても、減るのは例外オブジェクトの分だけです。
 - スマートフォンなどの実機で IL2CPP を測った値はありません。対象の端末で測ってください。
 
-await を囲む `finally`、`using`、キャンセルを受け取る `catch` を持たない型は、`FlowWorld.SkipUnwinding` に渡すと、取り消しで例外を投げずに終わります（[スコープとキャンセル](../guide/scopes-and-cancellation.md)）。`tools/bench/ab.cs` の `Cancel 10000 flows`（フレームを待つ子を 1 万本 Spawn したフローを取り消し、Cancel と巻き戻す Flush を測る。.NET 10、Release、デスクトップの PC）では、1 本あたり、巻き戻すと約 1.2 µs と 200 B、`SkipUnwinding` では約 0.14 µs（動的 PGO なしで約 0.07 µs）で割り当てはありませんでした。IL2CPP ではまだ測っていません。
+await を囲む `finally`、`using`、キャンセルを受け取る `catch` を持たない型は、`FlowWorld.SkipUnwinding` に渡すと、取り消しで例外を投げずに終わります（[スコープとキャンセル](../guide/scopes-and-cancellation.md)）。`tools/bench/ab.cs` の `Cancel 10000 flows`（フレームを待つ子を 1 万本 Spawn したフローを取り消し、Cancel と巻き戻す Flush を測る。.NET 10、Release、デスクトップの PC）では、1 本あたり、巻き戻すと約 1.2 µs と 200 B、`SkipUnwinding` では約 0.06 µs（動的 PGO なしでも同じ）で割り当てはありませんでした。根のフロー 1 万本を取っ手ごとに取り消す形（`Cancel 10000 handles (SkipUnwinding)`）では約 0.04 µs、それぞれが async メソッド 3 段の入れ子なら約 0.17 µs（動的 PGO なしで約 0.05 µs と 0.19 µs）です。IL2CPP ではまだ測っていません。
 
 ### 画面遷移の見積もり
 

@@ -8,11 +8,12 @@ namespace Katout.FlowTask.Benchmarks;
 /// Quick hot-path measurement for A/B comparisons (<c>tools/bench/ab.cs</c>): the SyncChain and Resume shapes of
 /// <see cref="AwaitOverhead"/> plus the waits game code uses every frame (NextFrame, WaitForSeconds, signal and subscription
 /// waits, Race, WhenAll, completed values), the unwinding of state machines (a Race's losing branch, a canceled chain
-/// of scopes), and the shapes a change was measured on (FlowProperty.Set, a FromCallback bridge's callback, a Spawn
-/// joined every Tick from a deep scope, a WhenAll of a list built every Tick, and a Tick with 10,000 waits that are
-/// not due), timed
-/// with a Stopwatch, best of 7
-/// rounds after warm-up. A scenario takes about a second, so two builds can be run alternately many times;
+/// of scopes), the shapes a change was measured on (FlowProperty.Set, a FromCallback bridge's callback, a Spawn joined
+/// every Tick from a deep scope, a WhenAll of a list built every Tick, and a Tick with 10,000 waits that are not due),
+/// and the cancellation of 10,000 flows (all at once or through each one's handle, one or three async methods deep,
+/// with a finally block or of a type whose unwinding the World skips, in a World that has canceled before or in a fresh
+/// one, with the bytes it allocates and those it puts on the Large Object Heap), timed with a Stopwatch, best of 7
+/// rounds after warm-up. A scenario takes one to three seconds, so two builds can be run alternately many times;
 /// BenchmarkDotNet's short job varies more between runs than the differences we look for.
 /// <c>hotpath</c> runs every scenario, <c>hotpath "&lt;name&gt;"</c> one, <c>hotpath --list</c> prints the names.
 /// Public API only, so the same file measures any published version of FlowTask; versions from before the public API
@@ -24,6 +25,9 @@ internal static class HotPath
     const int Chains = 100;
     const int Flows = 100;
     const int Rounds = 7;
+    // The cancellation scenarios call the unwinding once per round: half a second left it at Tier0 in some runs (60 or 170
+    // ns per flow from one build to the next), as its tier-up waits for the tiering delay.
+    const int CancelWarmUpMs = 2000;
     static long s_acc;
     static int s_depth;
     static Signal<int> s_signal;
@@ -199,7 +203,12 @@ internal static class HotPath
         "FromResult x100", "Subscription.Next x100", "Race(sub loses) x100",
         "FlowProperty.Set x100", "Signal.Emit (no receiver) x100", "FromCallback x100", "Join depth=10 x100", "Join depth=50 x100",
         "WhenAll(list 4) x100", "Idle waits x10000", "NextFrame x100 + idle x10000",
-        "Cancel 10000 flows", "Cancel 10000 flows (SkipUnwinding)",
+        "Cancel 10000 flows", "Cancel 10000 flows (SkipUnwinding)", "Cancel 10000 flows (finally)",
+        "Cancel 10000 handles", "Cancel 10000 handles (SkipUnwinding)", "Cancel 10000 aged handles",
+        "Cancel 10000 aged handles (SkipUnwinding)", "Cancel 10000 aged handles (finally)",
+        "Cancel 10000 nested handles", "Cancel 10000 nested handles (SkipUnwinding)",
+        "Cancel 10000 handles, fresh World (SkipUnwinding)", "Cancel 10000 nested handles, fresh World (SkipUnwinding)",
+        "Cancel 10000 flows, fresh World (SkipUnwinding)",
     };
 
     /// <summary>
@@ -254,6 +263,17 @@ internal static class HotPath
             case "NextFrame x100 + idle x10000": IdleScenario(name, withNextFrame: true); break;
             case "Cancel 10000 flows": CancelManyScenario(name, skipUnwinding: false); break;
             case "Cancel 10000 flows (SkipUnwinding)": CancelManyScenario(name, skipUnwinding: true); break;
+            case "Cancel 10000 flows (finally)": CancelManyScenario(name, skipUnwinding: false, withFinally: true); break;
+            case "Cancel 10000 handles": CancelHandlesScenario(name, skipUnwinding: false); break;
+            case "Cancel 10000 handles (SkipUnwinding)": CancelHandlesScenario(name, skipUnwinding: true); break;
+            case "Cancel 10000 aged handles": CancelHandlesScenario(name, skipUnwinding: false, aged: true); break;
+            case "Cancel 10000 aged handles (SkipUnwinding)": CancelHandlesScenario(name, skipUnwinding: true, aged: true); break;
+            case "Cancel 10000 aged handles (finally)": CancelHandlesScenario(name, skipUnwinding: false, aged: true, withFinally: true); break;
+            case "Cancel 10000 nested handles": CancelHandlesScenario(name, skipUnwinding: false, aged: true, nested: true); break;
+            case "Cancel 10000 nested handles (SkipUnwinding)": CancelHandlesScenario(name, skipUnwinding: true, aged: true, nested: true); break;
+            case "Cancel 10000 handles, fresh World (SkipUnwinding)": FreshWorldScenario(name, FreshShape.Handles); break;
+            case "Cancel 10000 nested handles, fresh World (SkipUnwinding)": FreshWorldScenario(name, FreshShape.NestedHandles); break;
+            case "Cancel 10000 flows, fresh World (SkipUnwinding)": FreshWorldScenario(name, FreshShape.Spawned); break;
             default: throw new ArgumentException("Unknown scenario: " + name);
         }
     }
@@ -300,14 +320,14 @@ internal static class HotPath
     /// With <paramref name="skipUnwinding"/>, the World skips the unwinding of their type (FlowWorld.SkipUnwinding, called
     /// through reflection so that the scenario also builds against a version without it, which then unwinds).
     /// </summary>
-    static void CancelManyScenario(string name, bool skipUnwinding)
+    static void CancelManyScenario(string name, bool skipUnwinding, bool withFinally = false)
     {
         using var w = new FlowWorld();
-        if (skipUnwinding) typeof(FlowWorld).GetMethod("SkipUnwinding", new[] { typeof(Type) })?.Invoke(w, new object[] { typeof(CancelFlows) });
+        if (skipUnwinding) SkipUnwinding(w);
         long bytes = 0;
         double Round()
         {
-            var h = w.Run(CancelFlows.Owner());
+            var h = w.Run(withFinally ? CancelFlows.OwnerWithFinally() : CancelFlows.Owner());
             var before = GC.GetAllocatedBytesForCurrentThread();
             var sw = Stopwatch.StartNew();
             h.Cancel();
@@ -319,7 +339,7 @@ internal static class HotPath
 
         var warm = Stopwatch.StartNew();
         do Round();
-        while (warm.ElapsedMilliseconds < 500);
+        while (warm.ElapsedMilliseconds < CancelWarmUpMs);
         var best = double.MaxValue;
         var bestBytes = 0L;
         for (var r = 0; r < Rounds; r++)
@@ -334,6 +354,138 @@ internal static class HotPath
 
         Report(name, best * 1e6 / CancelFlows.Count, "ns/flow");
         Report(name + " bytes", (double)bestBytes / CancelFlows.Count, "B/flow");
+    }
+
+    /// <summary>
+    /// <see cref="CancelFlows.Count"/> root flows waiting on frames, each canceled through its own handle, then one Flush:
+    /// the shape of game objects that each own a flow and are destroyed in the same frame. Per flow, and bytes per flow.
+    /// </summary>
+    static void CancelHandlesScenario(string name, bool skipUnwinding, bool aged = false, bool withFinally = false, bool nested = false)
+    {
+        using var w = new FlowWorld();
+        if (skipUnwinding) SkipUnwinding(w);
+        var handles = new FlowHandle[CancelFlows.Count];
+        long bytes = 0;
+        double Round()
+        {
+            for (var i = 0; i < handles.Length; i++) handles[i] = w.Run(nested ? CancelFlows.Outer() : withFinally ? CancelFlows.WaitWithFinally() : CancelFlows.Wait());
+            if (aged)
+            {
+                // Flows that have waited a while: a few Ticks, then a compacting GC moves them as a long-running game's
+                // heap would, so the cancellation does not find them in the cache it started them from.
+                for (var t = 0; t < 4; t++) w.Tick(Bench.Dt);
+                GC.Collect(2, GCCollectionMode.Forced, blocking: true, compacting: true);
+                GC.WaitForPendingFinalizers();
+                var junk = new object[1 << 16];
+                for (var j = 0; j < junk.Length; j++) junk[j] = new byte[64];
+                GC.KeepAlive(junk);
+            }
+
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var sw = Stopwatch.StartNew();
+            for (var i = 0; i < handles.Length; i++) handles[i].Cancel();
+            w.Flush();
+            sw.Stop();
+            bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            return sw.Elapsed.TotalMilliseconds;
+        }
+
+        var warm = Stopwatch.StartNew();
+        do Round();
+        while (warm.ElapsedMilliseconds < CancelWarmUpMs);
+        var best = double.MaxValue;
+        var bestBytes = 0L;
+        for (var r = 0; r < Rounds; r++)
+        {
+            var ms = Round();
+            if (ms < best)
+            {
+                best = ms;
+                bestBytes = bytes;
+            }
+        }
+
+        Report(name, best * 1e6 / CancelFlows.Count, "ns/flow");
+        Report(name + " bytes", (double)bestBytes / CancelFlows.Count, "B/flow");
+    }
+
+    /// <summary>Skips the unwinding of <see cref="CancelFlows"/> (through reflection, see <see cref="CancelManyScenario"/>).</summary>
+    static void SkipUnwinding(FlowWorld w) =>
+        typeof(FlowWorld).GetMethod("SkipUnwinding", new[] { typeof(Type) })?.Invoke(w, new object[] { typeof(CancelFlows) });
+
+    enum FreshShape
+    {
+        Handles,
+        NestedHandles,
+        Spawned,
+    }
+
+    /// <summary>
+    /// The first large cancellation of a World: every round makes a new World, starts <see cref="CancelFlows.Count"/>
+    /// flows of a type whose unwinding it skips (root flows canceled through their handles, the same three async methods
+    /// deep, or the spawned children of one flow canceled through it), and measures the Cancel and the Flush. A World that
+    /// has canceled as many flows before has grown its bookkeeping already; a fresh one grows it here. Reports the time
+    /// and the bytes per flow, and the bytes the cancellation put on the Large Object Heap (arrays of 85,000 bytes or
+    /// more, which only a gen2 GC collects), read after a gen0 GC before and after it.
+    /// </summary>
+    static void FreshWorldScenario(string name, FreshShape shape)
+    {
+        var handles = new FlowHandle[CancelFlows.Count];
+        long bytes = 0, loh = 0;
+        double Round()
+        {
+            using var w = new FlowWorld();
+            SkipUnwinding(w);
+            var owner = default(FlowHandle);
+            if (shape == FreshShape.Spawned) owner = w.Run(CancelFlows.Owner());
+            else
+            {
+                for (var i = 0; i < handles.Length; i++) handles[i] = w.Run(shape == FreshShape.NestedHandles ? CancelFlows.Outer() : CancelFlows.Wait());
+            }
+
+            var lohBefore = LargeObjectHeapBytes();
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var sw = Stopwatch.StartNew();
+            if (shape == FreshShape.Spawned) owner.Cancel();
+            else
+            {
+                for (var i = 0; i < handles.Length; i++) handles[i].Cancel();
+            }
+
+            w.Flush();
+            sw.Stop();
+            bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            loh = LargeObjectHeapBytes() - lohBefore;
+            return sw.Elapsed.TotalMilliseconds;
+        }
+
+        var warm = Stopwatch.StartNew();
+        do Round();
+        while (warm.ElapsedMilliseconds < CancelWarmUpMs);
+        var best = double.MaxValue;
+        long bestBytes = 0, maxLoh = 0;
+        for (var r = 0; r < Rounds; r++)
+        {
+            var ms = Round();
+            maxLoh = Math.Max(maxLoh, loh);
+            if (ms < best)
+            {
+                best = ms;
+                bestBytes = bytes;
+            }
+        }
+
+        Report(name, best * 1e6 / CancelFlows.Count, "ns/flow");
+        Report(name + " bytes", (double)bestBytes / CancelFlows.Count, "B/flow");
+        Report(name + " LOH bytes", maxLoh, "B");
+    }
+
+    /// <summary>The bytes in use on the Large Object Heap, after a gen0 GC (which does not collect it).</summary>
+    static long LargeObjectHeapBytes()
+    {
+        GC.Collect(0, GCCollectionMode.Forced, blocking: true);
+        var loh = GC.GetGCMemoryInfo(GCKind.Any).GenerationInfo[3];
+        return loh.SizeAfterBytes - loh.FragmentationAfterBytes;
     }
 
     static void FromResultScenario(string name)
@@ -442,11 +594,38 @@ internal static class CancelFlows
 {
     internal const int Count = 10000;
 
-    static async FlowTask Wait() => await FlowTask.DelayFrames(int.MaxValue);
+    internal static async FlowTask Wait() => await FlowTask.DelayFrames(int.MaxValue);
+
+    static int s_cleaned;
+
+    internal static async FlowTask WaitWithFinally()
+    {
+        try
+        {
+            await FlowTask.DelayFrames(int.MaxValue);
+        }
+        finally
+        {
+            s_cleaned++;
+        }
+    }
+
+    /// <summary>A flow that awaits a method that awaits a wait helper: three state machines, the shape of game code.</summary>
+    internal static async FlowTask Outer() => await Middle();
+
+    static async FlowTask Middle() => await WaitHelper();
+
+    static async FlowTask WaitHelper() => await FlowTask.DelayFrames(int.MaxValue);
 
     internal static async FlowTask Owner()
     {
         for (var i = 0; i < Count; i++) _ = Flow.Spawn(Wait());
+        await FlowTask.Never();
+    }
+
+    internal static async FlowTask OwnerWithFinally()
+    {
+        for (var i = 0; i < Count; i++) _ = Flow.Spawn(WaitWithFinally());
         await FlowTask.Never();
     }
 }
