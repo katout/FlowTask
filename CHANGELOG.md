@@ -7,6 +7,8 @@ without a deprecation period; every break is listed here.
 
 ## [Unreleased]
 
+## [0.2.0-preview.2] - 2026-11-16
+
 ### Changed
 
 - Canceling many flows at once costs less. The flush no longer copies the cancellations made outside the World's code before unwinding them, and no longer takes a list for each canceled flow; a `SkipUnwinding` method ends without setting the thread's current World again, and up to eight `SkipUnwinding` types are looked up without hashing. In `tools/bench/ab.cs` (.NET 10, Release, desktop PC), canceling 10,000 root flows of a `SkipUnwinding` type through their handles and flushing went from about 58 to 41 ns per flow (69 to 48 ns without dynamic PGO), and from about 189 to 167 ns when each flow is three async methods deep (225 to 192 ns). The order in which the flows end, run their cleanups, tell their handles and are reported is unchanged.
@@ -54,6 +56,7 @@ First public release.
 - Nothing has run on Android or iOS devices or on WebGL: the Unity tests run in the Editor and in Windows players,
   and the Android IL2CPP player is only built.
 
-[Unreleased]: https://github.com/katout/FlowTask/compare/v0.2.0-preview.1...HEAD
+[Unreleased]: https://github.com/katout/FlowTask/compare/v0.2.0-preview.2...HEAD
+[0.2.0-preview.2]: https://github.com/katout/FlowTask/compare/v0.2.0-preview.1...v0.2.0-preview.2
 [0.2.0-preview.1]: https://github.com/katout/FlowTask/compare/v0.1.0-preview.1...v0.2.0-preview.1
 [0.1.0-preview.1]: https://github.com/katout/FlowTask/releases/tag/v0.1.0-preview.1
