@@ -205,6 +205,50 @@ internal sealed class NodeRefList
     internal void Clear() => Truncate(0);
 }
 
+/// <summary>
+/// The types passed to FlowWorld.SkipUnwinding, read for every state machine a cancellation ends. Up to
+/// <see cref="ListLimit"/> runtime types, as a World usually has, are compared by reference, which costs less than hashing a
+/// Type; more, or a Type that is not a runtime type, go to a HashSet.
+/// </summary>
+internal sealed class TypeSet
+{
+    const int ListLimit = 8;
+
+    readonly Type[] _list = new Type[ListLimit];
+    int _count;
+    HashSet<Type> _set;
+
+    internal void Add(Type type)
+    {
+        if (_set == null)
+        {
+            if (Contains(type)) return;
+            if (_count < ListLimit && ReferenceEquals(type.UnderlyingSystemType, type))
+            {
+                _list[_count++] = type;
+                return;
+            }
+
+            _set = new HashSet<Type>();
+            for (var i = 0; i < _count; i++) _set.Add(_list[i]);
+        }
+
+        _set.Add(type);
+    }
+
+    internal bool Contains(Type type)
+    {
+        if (_set != null) return _set.Contains(type);
+        var list = _list;
+        for (var i = 0; i < _count; i++)
+        {
+            if (ReferenceEquals(list[i], type)) return true;
+        }
+
+        return false;
+    }
+}
+
 internal enum InboxKind : byte
 {
     /// <summary>An <see cref="IInboxItem"/>: a cross-thread emit or close, a posted action, a Task completion.</summary>

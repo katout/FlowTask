@@ -16,7 +16,7 @@ public sealed class FlowWorld : IDisposable
     bool _disposed;
 
     /// <summary>The types passed to SkipUnwinding (generic definitions); null until the first.</summary>
-    internal HashSet<Type> SkipUnwindingTypes;
+    internal TypeSet SkipUnwindingTypes;
 
     internal FlowNode CurrentScope;
     internal int ExecutionDepth;
@@ -128,7 +128,7 @@ public sealed class FlowWorld : IDisposable
         if (type == null) throw new ArgumentNullException(nameof(type));
         CheckThread();
         CheckNotDisposed();
-        (SkipUnwindingTypes ??= new HashSet<Type>()).Add(type.IsGenericType ? type.GetGenericTypeDefinition() : type);
+        (SkipUnwindingTypes ??= new TypeSet()).Add(type.IsGenericType ? type.GetGenericTypeDefinition() : type);
     }
 
     /// <summary>

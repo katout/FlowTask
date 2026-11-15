@@ -254,6 +254,55 @@ public class SkipUnwindingTests
         }
     }
 
+    [Test]
+    public void ATypeIsFoundAmongManyPassed()
+    {
+        // A World may skip the unwinding of many types: one passed first or last among them is found.
+        var others = new[] { typeof(int), typeof(long), typeof(short), typeof(byte), typeof(char), typeof(bool), typeof(double), typeof(float), typeof(decimal), typeof(string) };
+        var thread = Environment.CurrentManagedThreadId;
+        int Throws(FlowWorld w)
+        {
+            var throws = 0;
+            void Count(object sender, System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs e)
+            {
+                if (e.Exception is FlowCanceledException && Environment.CurrentManagedThreadId == thread) throws++;
+            }
+
+            AppDomain.CurrentDomain.FirstChanceException += Count;
+            try
+            {
+                var h = w.Run(GenericFlows<int>.WaitValue());
+                w.Tick(0.1);
+                h.Cancel();
+                w.Flush();
+                Assert.That(h.Status, Is.EqualTo(FlowStatus.Canceled));
+            }
+            finally
+            {
+                AppDomain.CurrentDomain.FirstChanceException -= Count;
+            }
+
+            return throws;
+        }
+
+        using var unwound = new FlowWorld();
+        using var first = new FlowWorld();
+        using var last = new FlowWorld();
+        first.SkipUnwinding(typeof(GenericFlows<>));
+        foreach (var t in others)
+        {
+            unwound.SkipUnwinding(t);
+            first.SkipUnwinding(t);
+            last.SkipUnwinding(t);
+        }
+
+        last.SkipUnwinding(typeof(GenericFlows<>));
+        // Where the runtime reports first-chance exceptions at all.
+        if (Throws(unwound) == 0) return;
+        Assert.That(Throws(first), Is.Zero, "passed first");
+        Assert.That(Throws(last), Is.Zero, "passed last");
+    }
+
     // ------------------------------------------------------------------ the check
 
     /// <summary>Whether this runtime gives method bodies (JIT and Mono do; NativeAOT and IL2CPP do not): the check reads them.</summary>
