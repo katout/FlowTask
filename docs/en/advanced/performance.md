@@ -56,6 +56,8 @@ The following allocate every time.
 - One failure: one failure record, one `FlowExceptionInfo`, one `ExceptionDispatchInfo`, and one path string. When an exception travels up a chain of awaits, each level that rethrows it also allocates. A chain that ends in success doesn't allocate, however many levels it has.
 - Your code compiled in Debug. The compiler makes the state machines classes. This also applies to Unity's Development Build and to the editor when Code Optimization is set to Debug ([Unity setup](../unity/setup.md)). Measure allocations in an optimized build.
 
+Also, when a World cancels more flows at once than it has before, the lists the unwinding uses grow (about 16 to 18 B per flow). They grow by 16 KB, so nothing goes on the Large Object Heap (which only a gen2 GC collects); later cancellations of up to as many flows allocate nothing.
+
 ## The cost of cancellation
 
 A canceled async method throws a new `FlowCanceledException` once at the await where it is suspended, and exits while running `finally` and `using`. This happens once per suspended async method. It doesn't become a chain that rethrows the exception at each level. Unwinding a leaf wait throws no exception and allocates nothing.

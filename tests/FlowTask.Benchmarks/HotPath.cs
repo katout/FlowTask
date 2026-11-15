@@ -8,12 +8,12 @@ namespace Katout.FlowTask.Benchmarks;
 /// Quick hot-path measurement for A/B comparisons (<c>tools/bench/ab.cs</c>): the SyncChain and Resume shapes of
 /// <see cref="AwaitOverhead"/> plus the waits game code uses every frame (NextFrame, WaitForSeconds, signal and subscription
 /// waits, Race, WhenAll, completed values), the unwinding of state machines (a Race's losing branch, a canceled chain
-/// of scopes), and the shapes a change was measured on (FlowProperty.Set, a FromCallback bridge's callback, a Spawn
-/// joined every Tick from a deep scope, a WhenAll of a list built every Tick, and a Tick with 10,000 waits that are
-/// not due), and the cancellation of 10,000 flows (all at once or through each one's handle, one or three async methods
-/// deep, with a finally block or of a type whose unwinding the World skips, in a World that has canceled before or in a
-/// fresh one, with the bytes it allocates and those it puts on the Large Object Heap), timed with a Stopwatch, best of 7
-/// rounds after warm-up. A scenario takes about a second, so two builds can be run alternately many times;
+/// of scopes), the shapes a change was measured on (FlowProperty.Set, a FromCallback bridge's callback, a Spawn joined
+/// every Tick from a deep scope, a WhenAll of a list built every Tick, and a Tick with 10,000 waits that are not due),
+/// and the cancellation of 10,000 flows (all at once or through each one's handle, one or three async methods deep,
+/// with a finally block or of a type whose unwinding the World skips, in a World that has canceled before or in a fresh
+/// one, with the bytes it allocates and those it puts on the Large Object Heap), timed with a Stopwatch, best of 7
+/// rounds after warm-up. A scenario takes one to three seconds, so two builds can be run alternately many times;
 /// BenchmarkDotNet's short job varies more between runs than the differences we look for.
 /// <c>hotpath</c> runs every scenario, <c>hotpath "&lt;name&gt;"</c> one, <c>hotpath --list</c> prints the names.
 /// Public API only, so the same file measures any published version of FlowTask; versions from before the public API
