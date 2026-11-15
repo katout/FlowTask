@@ -157,8 +157,9 @@ internal sealed class Unwinder
     {
         if (_pending.Count == 0) return;
         var batch = _pending;
-        // Only a flush unwinds the pending subtrees, and it does not run inside another: the spare is free (a new list
-        // keeps the batch safe otherwise).
+        // Only ResumeQueue.Flush calls this, and Tick and Flush refuse to run inside the World's code (IsExecuting), so
+        // it never runs inside itself and the spare is free. The spare is null only after an exception left an earlier
+        // call before it put its batch back: a new list replaces it.
         _pending = _spare ?? new NodeRefList();
         _spare = null;
         var count = batch.Count;
